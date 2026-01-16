@@ -1,0 +1,11 @@
+account_age_days,kyc_level_num,account_status_num,user_trust_score,user_city,late_payment_rate_90d,avg_late_days_90d,max_late_days_90d,on_time_payment_rate_90d,num_active_plans,repayment_severity_score,load_pressure_score,total_orders_30d,avg_order_amount_30d,max_order_amount_30d,sum_order_amount_30d,spend_pressure_score,currency,dispute_count_90d,refund_count_90d,context_friction_score,checkout_start_30d,checkout_success_30d,checkout_abandon_30d,checkout_abandon_rate_30d,checkout_friction_score,merchant_status_num,merchant_dispute_rate_90d,merchant_refund_rate_90d,merchant_risk_score,category,city_merchant
+141,2,1,2.5,Rabat,0.25,24.0,24.0,0.75,1,2.8282130774077405,0.6931471805599453,0,,,,0.0,MAD,1,1,1.5,0,0,0,0.0,0.0,1,0.3333333333333333,0.3333333333333333,1.0,fashion,Rabat
+103,2,1,2.5,Rabat,0.0,0.0,0.0,1.0,0,0.0,0.0,1,1711.0,1711.0,1711.0,4.74450940624499,MAD,0,0,0.0,1,1,0,0.0,0.0,1,0.0,0.0,0.0,electronics,Rabat
+87,2,1,2.5,Rabat,0.0,0.0,0.0,1.0,0,0.0,0.0,2,872.0,1370.0,1744.0,4.773422323204633,MAD,0,0,0.0,2,2,0,0.0,0.0,1,0.0,0.0,0.0,travel,Casablanca
+112,1,1,2.0,Marrakech,0.2,5.0,5.0,0.8,1,1.7142316284596384,0.6931471805599453,0,,,,0.0,MAD,0,0,0.0,0,0,0,0.0,0.0,1,0.05555555555555555,0.0,0.1111111111111111,travel,Casablanca
+65,2,1,2.5,Casablanca,0.0,0.0,0.0,1.0,0,0.0,0.0,2,2106.0,3331.0,4212.0,5.306241717439284,MAD,0,0,0.0,2,1,1,0.5,1.6931471805599454,1,0.04,0.0,0.08,electronics,Rabat
+110,2,1,2.5,Rabat,0.0,0.0,0.0,1.0,1,0.0,0.6931471805599453,0,,,,0.0,MAD,0,0,0.0,0,0,0,0.0,0.0,1,0.13333333333333333,0.06666666666666667,0.3333333333333333,travel,Marrakech
+37,2,1,2.5,Marrakech,,,,,0,0.8,0.0,2,2369.5,3618.0,4739.0,5.355816729605489,MAD,0,0,0.0,2,2,0,0.0,0.0,1,0.0,0.0,0.0,home,Marrakech
+93,2,1,2.5,Rabat,0.0,0.0,0.0,1.0,0,0.0,0.0,1,321.0,321.0,321.0,3.7419897995506233,MAD,1,1,1.5,1,1,0,0.0,0.0,1,0.058823529411764705,0.058823529411764705,0.1764705882352941,home,Casablanca
+118,2,1,2.5,Rabat,0.25,7.0,7.0,0.75,1,2.030609079175885,0.6931471805599453,1,1575.0,1575.0,1575.0,4.694846034474673,MAD,0,0,0.0,1,1,0,0.0,0.0,1,0.0,0.0,0.0,travel,Casablanca
+114,2,1,2.5,Marrakech,,,,,0,0.8,0.0,3,2334.6666666666665,3028.0,7004.0,5.364110431064298,MAD,0,0,0.0,3,3,0,0.0,0.0,1,0.0,0.0,0.0,travel,Casablanca
