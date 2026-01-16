@@ -20,10 +20,16 @@ from datetime import datetime, timedelta
 import json
 import asyncio
 
-# Add agents to path
-AGENTS_PATH = Path(__file__).parent.parent / "agents"
-sys.path.insert(0, str(AGENTS_PATH))
+# Fix path - add agents directory to Python path BEFORE any imports
+WEBAPP_DIR = Path(__file__).parent.resolve()
+PROJECT_ROOT = WEBAPP_DIR.parent
+AGENTS_PATH = PROJECT_ROOT / "agents"
 
+# Add both agents and agents/src to path
+sys.path.insert(0, str(AGENTS_PATH))
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# Now safe to import agent modules
 from dotenv import load_dotenv
 load_dotenv(AGENTS_PATH / ".env")
 
