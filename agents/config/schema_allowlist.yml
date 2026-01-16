@@ -1,0 +1,161 @@
+# Schema Allowlist Configuration
+#
+# Defines which tables and columns are accessible to the agent.
+# This is the source of truth for query validation.
+
+# Gold Layer (PREFERRED for agents)
+gold:
+  kpi_daily:
+    description: "Daily aggregated KPIs"
+    columns:
+      - date
+      - gmv
+      - approval_rate
+      - late_rate
+      - dispute_rate
+      - net_margin
+    primary_key: date
+    
+  user_features_daily:
+    description: "User-level features (one row per user per day)"
+    columns:
+      - user_id
+      - date
+      - on_time_rate_30d
+      - on_time_rate_90d
+      - late_days_sum_30d
+      - late_days_sum_90d
+      - installment_count_90d
+      - avg_installment_amount_30d
+      - device_change_count_30d
+      - dispute_rate_90d
+      - account_age_days
+    primary_key: [user_id, date]
+    
+  merchant_features_daily:
+    description: "Merchant-level features (one row per merchant per day)"
+    columns:
+      - merchant_id
+      - date
+      - approval_rate_30d
+      - late_rate_30d
+      - dispute_rate_30d
+      - refund_rate_30d
+      - order_count_30d
+      - gmv_30d
+    primary_key: [merchant_id, date]
+    
+  cohorts_signup_week:
+    description: "User cohort analysis by signup week"
+    columns:
+      - signup_week
+      - user_count
+      - late_rate_30d
+      - avg_order_amount
+    primary_key: signup_week
+
+# Silver Layer (for drill-downs only)
+silver:
+  users:
+    description: "User master data"
+    columns:
+      - user_id
+      - signup_date
+      - kyc_level
+      - city
+      - device_fingerprint
+      - account_status
+    primary_key: user_id
+    pii_columns:
+      - device_fingerprint
+    
+  merchants:
+    description: "Merchant master data"  
+    columns:
+      - merchant_id
+      - merchant_name
+      - category
+      - city
+      - risk_tier
+    primary_key: merchant_id
+    
+  orders:
+    description: "BNPL orders"
+    columns:
+      - order_id
+      - user_id
+      - merchant_id
+      - amount
+      - currency
+      - status
+      - created_at
+    primary_key: order_id
+    foreign_keys:
+      - column: user_id
+        references: users.user_id
+      - column: merchant_id
+        references: merchants.merchant_id
+    
+  installments:
+    description: "Payment installments"
+    columns:
+      - installment_id
+      - order_id
+      - due_date
+      - paid_date
+      - status
+      - late_days
+    primary_key: installment_id
+    foreign_keys:
+      - column: order_id
+        references: orders.order_id
+    
+  payments:
+    description: "Actual payments made"
+    columns:
+      - payment_id
+      - installment_id
+      - amount
+      - payment_channel
+      - paid_at
+    primary_key: payment_id
+    foreign_keys:
+      - column: installment_id
+        references: installments.installment_id
+    
+  disputes_returns:
+    description: "Disputes and refunds"
+    columns:
+      - case_id
+      - order_id
+      - reason
+      - amount
+      - outcome
+    primary_key: case_id
+    foreign_keys:
+      - column: order_id
+        references: orders.order_id
+
+  checkout_events:
+    description: "Checkout funnel events"
+    columns:
+      - event_id
+      - user_id
+      - merchant_id
+      - event_type
+      - timestamp
+      - device
+    primary_key: event_id
+
+# Relationships for JOIN validation
+relationships:
+  - from: orders.user_id
+    to: users.user_id
+  - from: orders.merchant_id
+    to: merchants.merchant_id
+  - from: installments.order_id
+    to: orders.order_id
+  - from: payments.installment_id
+    to: installments.installment_id
+  - from: disputes_returns.order_id
+    to: orders.order_id

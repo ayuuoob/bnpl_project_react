@@ -1,0 +1,327 @@
+# BNPL Analytics - Question Bank
+#
+# This file contains 20 sample questions categorized by stakeholder.
+# Used for:
+# - Training the intent classifier
+# - Demo scenarios
+# - Testing the agent
+#
+# Each question includes:
+# - text: The natural language question
+# - intent: Classification (growth_analytics, funnel, risk, merchant_perf, disputes_refunds, ad_hoc)
+# - kpis: List of KPIs needed to answer
+# - tables: Data tables required
+# - expected_output: Brief description of expected answer format
+
+questions:
+  # ============================================
+  # GROWTH (5 questions)
+  # ============================================
+  
+  - id: G1
+    text: "What was our GMV last month vs previous month?"
+    intent: growth_analytics
+    kpis:
+      - gmv
+    tables:
+      - orders
+      - kpi_daily
+    time_comparison: true
+    expected_output: "GMV comparison with absolute values and % change"
+    stakeholder: growth
+    
+  - id: G2
+    text: "How many active users do we have in the last 30 days?"
+    intent: growth_analytics
+    kpis:
+      - active_users
+    tables:
+      - orders
+    time_window_days: 30
+    expected_output: "Single number with optional trend"
+    stakeholder: growth
+    
+  - id: G3
+    text: "What is our repeat user rate this quarter?"
+    intent: growth_analytics
+    kpis:
+      - repeat_user_rate
+    tables:
+      - orders
+    time_window_days: 90
+    expected_output: "Percentage with comparison to previous quarter"
+    stakeholder: growth
+    
+  - id: G4
+    text: "Which cities are driving the most GMV growth?"
+    intent: growth_analytics
+    kpis:
+      - gmv
+    tables:
+      - orders
+      - users
+    group_by:
+      - city
+    time_comparison: true
+    expected_output: "Top cities ranked by GMV with growth rates"
+    stakeholder: growth
+    
+  - id: G5
+    text: "What is our week-over-week user acquisition trend?"
+    intent: growth_analytics
+    kpis:
+      - active_users
+    tables:
+      - users
+    time_granularity: week
+    expected_output: "Weekly new user counts with trend line"
+    stakeholder: growth
+
+  # ============================================
+  # FUNNEL (4 questions)
+  # ============================================
+  
+  - id: F1
+    text: "What is our checkout to approval conversion rate?"
+    intent: funnel
+    kpis:
+      - checkout_conversion
+      - approval_rate
+    tables:
+      - checkout_events
+      - orders
+    expected_output: "Conversion percentages at each funnel step"
+    stakeholder: product
+    
+  - id: F2
+    text: "Where are users dropping off in the checkout flow?"
+    intent: funnel
+    kpis: []
+    tables:
+      - checkout_events
+    requires_sql: true
+    expected_output: "Drop-off rates at each checkout step"
+    stakeholder: product
+    
+  - id: F3
+    text: "Which merchants have the lowest approval rates?"
+    intent: funnel
+    kpis:
+      - approval_rate
+    tables:
+      - orders
+      - merchants
+    group_by:
+      - merchant_id
+    sort_order: asc
+    expected_output: "Bottom merchants by approval rate"
+    stakeholder: risk
+    
+  - id: F4
+    text: "What percentage of checkout starts result in a paid order?"
+    intent: funnel
+    kpis:
+      - checkout_conversion
+    tables:
+      - checkout_events
+      - orders
+      - payments
+    expected_output: "End-to-end conversion funnel with percentages"
+    stakeholder: product
+
+  # ============================================
+  # RISK / COLLECTIONS (5 questions)
+  # ============================================
+  
+  - id: R1
+    text: "What is our current late payment rate by cohort?"
+    intent: risk
+    kpis:
+      - late_rate
+    tables:
+      - installments
+      - cohorts_signup_week
+    group_by:
+      - signup_week
+    expected_output: "Late rate per cohort with trend"
+    stakeholder: risk
+    
+  - id: R2
+    text: "How many users are in each delinquency bucket (1-7, 8-30, 30+)?"
+    intent: risk
+    kpis:
+      - delinquency_buckets
+    tables:
+      - installments
+    expected_output: "Count per bucket with total"
+    stakeholder: collections
+    
+  - id: R3
+    text: "Which user segments have the highest risk scores?"
+    intent: risk
+    kpis: []
+    tables:
+      - user_features_daily
+    requires_ml: true
+    expected_output: "Segments ranked by average risk score"
+    stakeholder: risk
+    
+  - id: R4
+    text: "What is the trend in late_days_sum over the last 90 days?"
+    intent: risk
+    kpis:
+      - late_rate
+    tables:
+      - user_features_daily
+    time_window_days: 90
+    time_granularity: day
+    expected_output: "Time series of late days with trend direction"
+    stakeholder: risk
+    
+  - id: R5
+    text: "Which cohorts are underperforming in on-time payment rates?"
+    intent: risk
+    kpis:
+      - late_rate
+    tables:
+      - cohorts_signup_week
+    group_by:
+      - signup_week
+    sort_order: desc
+    expected_output: "Cohorts with below-average on-time rates"
+    stakeholder: collections
+
+  # ============================================
+  # MERCHANT SUCCESS (4 questions)
+  # ============================================
+  
+  - id: M1
+    text: "Which merchants have the highest dispute rates?"
+    intent: merchant_perf
+    kpis:
+      - dispute_rate
+    tables:
+      - disputes_returns
+      - orders
+      - merchants
+    group_by:
+      - merchant_id
+    sort_order: desc
+    expected_output: "Top merchants by dispute rate with counts"
+    stakeholder: merchant
+    
+  - id: M2
+    text: "What is the refund rate by merchant category?"
+    intent: disputes_refunds
+    kpis:
+      - refund_rate
+    tables:
+      - disputes_returns
+      - merchants
+    group_by:
+      - category
+    expected_output: "Refund rates per category"
+    stakeholder: merchant
+    
+  - id: M3
+    text: "Who are our top 10 merchants by GMV?"
+    intent: merchant_perf
+    kpis:
+      - gmv
+    tables:
+      - orders
+      - merchants
+    group_by:
+      - merchant_id
+    limit: 10
+    sort_order: desc
+    expected_output: "Top 10 merchants with GMV and share %"
+    stakeholder: growth
+    
+  - id: M4
+    text: "Which merchants are flagged as high-risk tier?"
+    intent: merchant_perf
+    kpis:
+      - dispute_rate
+      - late_rate
+    tables:
+      - merchants
+      - merchant_features_daily
+    filters:
+      risk_tier: high
+    expected_output: "List of high-risk merchants with metrics"
+    stakeholder: risk
+
+  # ============================================
+  # FINANCE (2 questions)
+  # ============================================
+  
+  - id: Fi1
+    text: "What is our net margin trend over the last quarter?"
+    intent: ad_hoc
+    kpis: []
+    tables:
+      - kpi_daily
+    time_window_days: 90
+    time_granularity: week
+    expected_output: "Weekly net margin with trend"
+    stakeholder: finance
+    
+  - id: Fi2
+    text: "What is the average repayment velocity by cohort?"
+    intent: ad_hoc
+    kpis:
+      - repayment_velocity
+    tables:
+      - installments
+      - payments
+    group_by:
+      - signup_week
+    expected_output: "Days early/late per cohort"
+    stakeholder: finance
+
+# ============================================
+# INTENT PATTERNS (for classifier training)
+# ============================================
+
+intent_patterns:
+  growth_analytics:
+    - "gmv"
+    - "revenue"
+    - "active users"
+    - "growth"
+    - "acquisition"
+    - "repeat rate"
+    - "new users"
+    
+  funnel:
+    - "conversion"
+    - "checkout"
+    - "approval rate"
+    - "drop off"
+    - "abandon"
+    
+  risk:
+    - "late"
+    - "delinquent"
+    - "overdue"
+    - "risk score"
+    - "on-time"
+    - "cohort performance"
+    
+  merchant_perf:
+    - "merchant"
+    - "top merchants"
+    - "merchant gmv"
+    - "high-risk"
+    
+  disputes_refunds:
+    - "dispute"
+    - "refund"
+    - "chargeback"
+    - "return"
+    
+  ad_hoc:
+    - "margin"
+    - "velocity"
+    - "custom"
