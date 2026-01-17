@@ -28,10 +28,16 @@ def _load_uc1_model():
     """Load UC1 Late Payment Risk model (pickle)."""
     global _uc1_model
     if _uc1_model is None and UC1_MODEL_PATH.exists():
-        import pickle
-        with open(UC1_MODEL_PATH, "rb") as f:
-            _uc1_model = pickle.load(f)
-    return _uc1_model
+        try:
+            import pickle
+            with open(UC1_MODEL_PATH, "rb") as f:
+                _uc1_model = pickle.load(f)
+        except Exception as e:
+            # Model incompatible with current Python version
+            # Mark as failed so we use rule-based prediction
+            _uc1_model = "FAILED"
+            print(f"Warning: UC1 model failed to load: {e}")
+    return _uc1_model if _uc1_model != "FAILED" else None
 
 
 def _load_uc2_model():
@@ -172,7 +178,8 @@ class MLPredictionTool(BaseTool):
         model = _load_uc1_model()
         
         if model is None:
-            return self._format_error("UC1 model not found", UC1_MODEL_PATH)
+            # Use rule-based prediction as fallback
+            return self._rule_based_late_payment(features)
         
         try:
             # Prepare features DataFrame
@@ -184,7 +191,77 @@ class MLPredictionTool(BaseTool):
             
             return self._format_late_payment_result(prediction, probability, features)
         except Exception as e:
-            return f"Error in late payment prediction: {str(e)}"
+            # Fallback to rule-based if model prediction fails
+            return self._rule_based_late_payment(features)
+    
+    def _rule_based_late_payment(self, features: Dict[str, Any]) -> str:
+        """Rule-based late payment prediction (fallback when model unavailable)."""
+        # Extract key features
+        late_rate = features.get("late_payment_rate_90d", features.get("late_rate_90d", 0))
+        avg_late_days = features.get("avg_late_days_90d", 0)
+        ontime_rate = features.get("on_time_payment_rate_90d", features.get("ontime_rate_90d", 1))
+        active_plans = features.get("num_active_plans", features.get("active_plans", 0))
+        account_age = features.get("account_age_days", 365)
+        
+        # Calculate risk score based on rules
+        risk_score = 0
+        reasons = []
+        
+        if late_rate > 0.3:
+            risk_score += 40
+            reasons.append("High historical late payment rate")
+        elif late_rate > 0.1:
+            risk_score += 20
+            reasons.append("Moderate late payment history")
+        
+        if avg_late_days > 15:
+            risk_score += 25
+            reasons.append("Significant average delay in payments")
+        elif avg_late_days > 7:
+            risk_score += 15
+        
+        if ontime_rate < 0.7:
+            risk_score += 20
+            reasons.append("Low on-time payment rate")
+        
+        if active_plans >= 3:
+            risk_score += 15
+            reasons.append("Multiple active payment plans")
+        
+        if account_age < 60:
+            risk_score += 10
+            reasons.append("New account")
+        
+        # Determine prediction
+        is_late = risk_score >= 50
+        probability = min(risk_score / 100, 0.95)
+        
+        # Format result
+        risk_level = "HIGH" if is_late else "LOW"
+        emoji = "🔴" if is_late else "🟢"
+        
+        lines = [
+            f"# Late Payment Risk: {emoji} {risk_level}",
+            "",
+            f"**Prediction**: {'LIKELY TO BE LATE' if is_late else 'LIKELY ON TIME'}",
+            f"**Risk Score**: {risk_score}/100",
+            f"**Risk Probability**: {probability:.1%}",
+            "",
+        ]
+        
+        if reasons:
+            lines.append("**Risk Factors**:")
+            for reason in reasons[:3]:
+                lines.append(f"- {reason}")
+        else:
+            lines.append("**Assessment**: Good payment behavior")
+        
+        lines.extend([
+            "",
+            "_Model: Rule-based prediction (UC1 fallback)_"
+        ])
+        
+        return "\n".join(lines)
     
     def _predict_trust_score(self, features: Dict[str, Any]) -> str:
         """UC2: Calculate trust score with business logic."""
