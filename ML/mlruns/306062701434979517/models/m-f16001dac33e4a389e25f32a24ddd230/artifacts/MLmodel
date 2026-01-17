@@ -1,0 +1,26 @@
+artifact_path: file:C:\Users\PC\Documents\DXC Hackathon\bnpl-intelligent-analytics\ML\mlruns/306062701434979517/models/m-f16001dac33e4a389e25f32a24ddd230/artifacts
+flavors:
+  python_function:
+    artifacts:
+      meta:
+        path: artifacts\meta.json
+        uri: C:\Users\PC\Documents\DXC Hackathon\bnpl-intelligent-analytics\ML\artifacts\tmp\registry_artifacts\meta.json
+      pipeline:
+        path: artifacts\pipeline.joblib
+        uri: C:\Users\PC\Documents\DXC Hackathon\bnpl-intelligent-analytics\ML\artifacts\tmp\registry_artifacts\pipeline.joblib
+    cloudpickle_version: 3.1.2
+    code: null
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pyfunc.model
+    python_model: python_model.pkl
+    python_version: 3.14.0
+    streamable: false
+mlflow_version: 3.8.1
+model_id: m-f16001dac33e4a389e25f32a24ddd230
+model_size_bytes: 8665
+model_uuid: m-f16001dac33e4a389e25f32a24ddd230
+prompts: null
+run_id: 4a0a01cac56746038d4f238a44632a92
+utc_time_created: '2026-01-17 00:11:39.379682'

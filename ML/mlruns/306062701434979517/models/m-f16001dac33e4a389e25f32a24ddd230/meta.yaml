@@ -1,0 +1,10 @@
+artifact_location: file:C:\Users\PC\Documents\DXC Hackathon\bnpl-intelligent-analytics\ML\mlruns/306062701434979517/models/m-f16001dac33e4a389e25f32a24ddd230/artifacts
+creation_timestamp: 1768608699270
+experiment_id: '306062701434979517'
+last_updated_timestamp: 1768608705682
+model_id: m-f16001dac33e4a389e25f32a24ddd230
+model_type: null
+name: registry_model
+source_run_id: 4a0a01cac56746038d4f238a44632a92
+status: 2
+status_message: null

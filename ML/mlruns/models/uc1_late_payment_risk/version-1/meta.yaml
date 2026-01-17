@@ -1,0 +1,15 @@
+creation_timestamp: 1768608705957
+current_stage: None
+deployment_job_state: null
+description: null
+last_updated_timestamp: 1768608705957
+model_id: m-f16001dac33e4a389e25f32a24ddd230
+name: uc1_late_payment_risk
+run_id: 4a0a01cac56746038d4f238a44632a92
+run_link: null
+source: models:/m-f16001dac33e4a389e25f32a24ddd230
+status: READY
+status_message: null
+storage_location: file:C:\Users\PC\Documents\DXC Hackathon\bnpl-intelligent-analytics\ML\mlruns/306062701434979517/models/m-f16001dac33e4a389e25f32a24ddd230/artifacts
+user_id: null
+version: 1

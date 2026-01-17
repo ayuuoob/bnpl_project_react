@@ -1,0 +1,12 @@
+{
+  "sum_order_amount_30d": 0.5232172470978441,
+  "avg_order_amount_30d": 0.5232172470978441,
+  "max_order_amount_30d": 0.5232172470978441,
+  "avg_late_days_90d": 0.15671641791044777,
+  "on_time_payment_rate_90d": 0.15671641791044777,
+  "max_late_days_90d": 0.15671641791044777,
+  "late_payment_rate_90d": 0.15671641791044777,
+  "account_age_days": 0.0,
+  "user_city": 0.0,
+  "kyc_level_num": 0.0
+}

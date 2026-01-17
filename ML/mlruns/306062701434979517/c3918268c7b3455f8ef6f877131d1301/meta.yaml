@@ -1,0 +1,14 @@
+artifact_uri: file:C:\Users\PC\Documents\DXC Hackathon\bnpl-intelligent-analytics\ML\mlruns/306062701434979517/c3918268c7b3455f8ef6f877131d1301/artifacts
+end_time: 1768589332587
+entry_point_name: ''
+experiment_id: '306062701434979517'
+lifecycle_stage: active
+run_id: c3918268c7b3455f8ef6f877131d1301
+run_name: cv_LogReg
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1768589331088
+status: 3
+tags: []
+user_id: PC
