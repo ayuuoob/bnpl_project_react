@@ -25,7 +25,9 @@ Output:
   - orders
   - installments
   - payments
-  - disputes_returns
+  - disputes
+  - refunds
+  - checkout_events
 
 Output:
 - Trusted operational data
@@ -43,6 +45,7 @@ Output:
 ---
 
 ## Step 4 – Gold Aggregations & Features
+- Compute gold_orders_analytics
 - Compute user_features_daily
 - Compute merchant_features_daily
 - Compute kpi_daily

@@ -40,15 +40,7 @@ payload_json:
 
 ---
 
-### 3. ORDER_REQ
-User requests a BNPL payment.
 
-payload_json:
-- amount
-- currency
-- merchant_category
-
----
 
 ### 4. ORDER_OK
 BNPL order approved.

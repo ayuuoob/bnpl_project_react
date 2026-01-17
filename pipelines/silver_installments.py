@@ -64,12 +64,29 @@ def build_installments(df: pd.DataFrame) -> pd.DataFrame:
     installments = due.merge(paid, on="installment_id", how="left")
     installments = installments.merge(late, on="installment_id", how="left", suffixes=("", "_late"))
 
+    # ---------- INSTALLMENT NUMBER ----------
+    # Rank installments by due_date within each order to get installment_number (1, 2, 3...)
+    installments["installment_number"] = installments.groupby("order_id")["due_date"].rank(method="first", ascending=True).astype(int)
+
     # ---------- STATUS ----------
     installments["status"] = "due"
     installments.loc[installments["paid_date"].notna() & installments["late_days"].isna(), "status"] = "paid"
     installments.loc[installments["late_days"].notna(), "status"] = "late"
 
     installments["late_days"] = installments["late_days"].fillna(0).astype(int)
+
+    # ---------- SELECT & REORDER ----------
+    installments = installments[[
+        "installment_id",
+        "order_id",
+        "user_id",
+        "merchant_id",
+        "installment_number",
+        "due_date",
+        "paid_date",
+        "status",
+        "late_days"
+    ]]
 
     return installments
 

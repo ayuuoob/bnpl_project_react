@@ -16,9 +16,9 @@ Predict whether a user will have a late installment in the near future.
 
 A user is labeled as `late_next_30d = 1` if:
 
-- At least one installment
-- becomes due within the next 30 days
-- AND is paid after the due date + grace period
+- At least one installment (from `installments` table)
+- becomes due (`due_date`) within the next 30 days
+- AND is paid (`paid_date`) after the due date + grace period
 
 Otherwise:
 - `late_next_30d = 0`

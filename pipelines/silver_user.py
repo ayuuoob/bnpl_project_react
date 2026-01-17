@@ -24,7 +24,19 @@ def build_users(df_events: pd.DataFrame) -> pd.DataFrame:
     kyc = kyc[["user_id", "kyc_level"]]
 
     users = signup.merge(kyc, on="user_id", how="left")
+    
+    # Add missing columns
+    users["account_status"] = "active" # Default to active
+    users["created_at"] = pd.to_datetime(signup["ts"]) # Use signup ts as creation time
+    users["updated_at"] = users["created_at"] # ongoing updates logic not yet implemented
+
     users = users.drop_duplicates(subset=["user_id"])
+
+    # Reorder to match schema/CSV
+    users = users[[
+        "user_id", "signup_date", "kyc_level", "city", 
+        "account_status", "created_at", "updated_at"
+    ]]
 
     return users
 

@@ -3,6 +3,8 @@
 Silver tables are cleaned, normalized representations of BNPL business entities.
 They are derived from Bronze events and are trusted across BI, ML, and AI agents.
 
+The schema below reflects the source-of-truth CSV files located in `data/silver/`.
+
 ---
 
 ## users
@@ -11,8 +13,9 @@ They are derived from Bronze events and are trusted across BI, ML, and AI agents
 - signup_date (date)
 - kyc_level (string)
 - city (string)
-- device_fingerprint (string)
-- account_status (active / blocked)
+- account_status (string)
+- created_at (timestamp)
+- updated_at (timestamp)
 
 ---
 
@@ -22,7 +25,9 @@ They are derived from Bronze events and are trusted across BI, ML, and AI agents
 - merchant_name (string)
 - category (string)
 - city (string)
-- risk_tier (low / medium / high)
+- merchant_status (string)
+- created_at (timestamp)
+- updated_at (timestamp)
 
 ---
 
@@ -31,10 +36,11 @@ They are derived from Bronze events and are trusted across BI, ML, and AI agents
 - order_id (string)
 - user_id (string)
 - merchant_id (string)
+- order_date (date)
 - amount (float)
 - currency (string)
-- status (approved / rejected)
-- created_at (timestamp)
+- installments_count (int)
+- status (string)
 
 ---
 
@@ -42,10 +48,13 @@ They are derived from Bronze events and are trusted across BI, ML, and AI agents
 
 - installment_id (string)
 - order_id (string)
+- user_id (string)
+- merchant_id (string)
+- installment_number (int)
 - due_date (date)
 - paid_date (date, nullable)
-- status (paid / late / due)
-- late_days (int)
+- status (string)
+- late_days (float, nullable)
 
 ---
 
@@ -53,16 +62,43 @@ They are derived from Bronze events and are trusted across BI, ML, and AI agents
 
 - payment_id (string)
 - installment_id (string)
+- order_id (string)
+- user_id (string)
+- merchant_id (string)
+- payment_date (date)
 - amount (float)
-- payment_channel (card / wallet)
-- paid_at (timestamp)
+- payment_channel (string)
+- status (string)
 
 ---
 
-## disputes_returns
+## disputes
 
-- case_id (string)
+- dispute_id (string)
 - order_id (string)
+- user_id (string)
+- merchant_id (string)
+- dispute_date (date)
 - reason (string)
+- status (string)
+
+---
+
+## refunds
+
+- refund_id (string)
+- order_id (string)
+- user_id (string)
+- merchant_id (string)
+- refund_date (date)
 - amount (float)
-- outcome (open / resolved / refunded)
+
+---
+
+## checkout_events
+
+- checkout_event_id (string)
+- order_id (string)
+- user_id (string)
+- event_type (string)
+- event_date (timestamp)

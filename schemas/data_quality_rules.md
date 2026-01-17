@@ -30,6 +30,8 @@ These checks ensure trust, explainability, and safe decision-making.
 
 ---
 
+---
+
 ## orders
 
 - order_id must be unique
@@ -57,11 +59,27 @@ These checks ensure trust, explainability, and safe decision-making.
 
 ---
 
-## disputes_returns
+## disputes
 
-- case_id must be unique
-- amount ≥ 0
-- outcome ∈ {open, resolved, refunded}
+- dispute_id must be unique
+- reason must be populated
+- status ∈ {open, resolved, refunded}
+
+---
+
+## refunds
+
+- refund_id must be unique
+- amount > 0
+- refund_date must exist
+
+---
+
+## checkout_events
+
+- checkout_event_id must be unique
+- event_type must be valid
+- event_date must exist
 
 ---
 

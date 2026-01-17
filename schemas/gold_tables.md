@@ -5,6 +5,24 @@ They are derived from Silver tables and updated daily.
 
 ---
 
+## gold_orders_analytics
+
+Comprehensive view of orders joined with user, merchant, and payment stats.
+
+- order_id (string)
+- user_id (string)
+- merchant_id (string)
+- order_date (date)
+- amount (float)
+- status (string)
+- installments_count (int)
+- paid_installments (int)
+- late_installments (int)
+- has_dispute (boolean/int)
+- refund_amount (float)
+
+---
+
 ## user_features_daily
 
 One row per user per day.
