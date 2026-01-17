@@ -1,0 +1,234 @@
+# BNPL Analytics - KPI Definitions
+# 
+# This file defines all pre-computed KPIs available via the KPI Tool.
+# Each KPI includes its formula, required tables, and supported dimensions.
+#
+# Usage: The agent's Planner node uses this to determine whether to call
+# mcp.kpi.get (preferred) or fall back to mcp.sql.run.
+
+kpis:
+  # ============================================
+  # GROWTH METRICS
+  # ============================================
+  
+  gmv:
+    name: "GMV (Gross Merchandise Value)"
+    description: "Total value of approved BNPL orders"
+    formula: "SUM(amount) WHERE status='approved'"
+    tables:
+      - orders
+      - kpi_daily
+    dimensions:
+      - date
+      - merchant_id
+      - city
+      - category
+    stakeholders:
+      - growth
+      - merchant
+    default_time_window_days: 30
+    
+  approval_rate:
+    name: "Approval Rate"
+    description: "Percentage of BNPL orders approved"
+    formula: "COUNT(status='approved') / COUNT(*)"
+    tables:
+      - orders
+      - kpi_daily
+    dimensions:
+      - date
+      - merchant_id
+      - category
+    stakeholders:
+      - growth
+      - risk
+    default_time_window_days: 30
+    
+  active_users:
+    name: "Active Users (30d)"
+    description: "Distinct users with at least one order in the period"
+    formula: "COUNT(DISTINCT user_id) WHERE has_order_in_period"
+    tables:
+      - orders
+      - users
+    dimensions:
+      - date
+      - city
+      - cohort
+    stakeholders:
+      - growth
+    default_time_window_days: 30
+    
+  repeat_user_rate:
+    name: "Repeat User Rate"
+    description: "Percentage of users with 2+ orders"
+    formula: "COUNT(users with orders >= 2) / COUNT(users with orders >= 1)"
+    tables:
+      - orders
+    dimensions:
+      - date
+      - cohort
+      - city
+    stakeholders:
+      - growth
+    default_time_window_days: 90
+    
+  # ============================================
+  # RISK / COLLECTIONS METRICS
+  # ============================================
+  
+  late_rate:
+    name: "Late Payment Rate"
+    description: "Percentage of installments paid late"
+    formula: "COUNT(status='late') / COUNT(*)"
+    tables:
+      - installments
+      - kpi_daily
+    dimensions:
+      - date
+      - user_cohort
+      - merchant_id
+    stakeholders:
+      - risk
+      - collections
+    default_time_window_days: 30
+    
+  delinquency_buckets:
+    name: "Delinquency Buckets"
+    description: "Distribution of late installments by days overdue"
+    formula: "COUNT(*) GROUP BY CASE late_days (1-7, 8-30, 31-60, 60+)"
+    tables:
+      - installments
+    dimensions:
+      - date
+      - cohort
+    buckets:
+      - label: "1-7 days"
+        min_days: 1
+        max_days: 7
+      - label: "8-30 days"
+        min_days: 8
+        max_days: 30
+      - label: "31-60 days"
+        min_days: 31
+        max_days: 60
+      - label: "60+ days"
+        min_days: 61
+        max_days: null
+    stakeholders:
+      - risk
+      - collections
+    default_time_window_days: 30
+    
+  # ============================================
+  # MERCHANT METRICS
+  # ============================================
+  
+  dispute_rate:
+    name: "Dispute Rate"
+    description: "Disputes as percentage of orders"
+    formula: "COUNT(disputes) / COUNT(orders)"
+    tables:
+      - disputes_returns
+      - orders
+      - kpi_daily
+    dimensions:
+      - date
+      - merchant_id
+      - category
+    stakeholders:
+      - merchant
+      - risk
+    default_time_window_days: 30
+    
+  refund_rate:
+    name: "Refund Rate"
+    description: "Refunds as percentage of GMV"
+    formula: "SUM(refund_amount) / SUM(gmv)"
+    tables:
+      - disputes_returns
+      - orders
+    dimensions:
+      - date
+      - merchant_id
+    stakeholders:
+      - merchant
+    default_time_window_days: 30
+    
+  # ============================================
+  # FUNNEL METRICS
+  # ============================================
+  
+  checkout_conversion:
+    name: "Checkout Conversion Rate"
+    description: "Percentage of checkout starts that result in approved orders"
+    formula: "COUNT(ORDER_OK events) / COUNT(checkout_start events)"
+    tables:
+      - checkout_events
+    dimensions:
+      - date
+      - merchant_id
+      - device
+    stakeholders:
+      - growth
+      - product
+    default_time_window_days: 30
+    
+  # ============================================
+  # FINANCE METRICS
+  # ============================================
+  
+  repayment_velocity:
+    name: "Repayment Velocity"
+    description: "Average days early (negative) or late (positive) for payments"
+    formula: "AVG(paid_date - due_date)"
+    tables:
+      - installments
+      - payments
+    dimensions:
+      - date
+      - cohort
+    stakeholders:
+      - finance
+    default_time_window_days: 90
+
+# ============================================
+# AGGREGATION RULES
+# ============================================
+
+aggregation_rules:
+  # Rules for combining KPIs across dimensions
+  sum_metrics:
+    - gmv
+    - active_users
+  
+  weighted_avg_metrics:
+    - approval_rate
+    - late_rate
+    - dispute_rate
+    - refund_rate
+    - checkout_conversion
+  
+  avg_metrics:
+    - repayment_velocity
+
+# ============================================
+# ALERTING THRESHOLDS (for recommendations)
+# ============================================
+
+thresholds:
+  late_rate:
+    warning: 0.05
+    critical: 0.10
+    
+  dispute_rate:
+    warning: 0.02
+    critical: 0.05
+    
+  approval_rate:
+    warning: 0.80  # Below this is a warning
+    critical: 0.70
+    
+  checkout_conversion:
+    warning: 0.60
+    critical: 0.50
