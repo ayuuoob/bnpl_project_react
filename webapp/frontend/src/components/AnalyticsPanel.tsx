@@ -16,16 +16,16 @@ const AnalyticsPanel: React.FC<Props> = ({ data, onClose }) => {
     if (!data || (!data.kpis?.length && !data.charts?.length && !data.tables?.length && !data.cards?.length)) {
         return (
             <div className="h-full w-full flex flex-col bg-white">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-                    <h2 className="text-lg font-semibold text-gray-900">Analytics</h2>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                    <h2 className="text-lg font-semibold text-[#303848]">Analytics</h2>
                     {onClose && (
-                        <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
-                            <X size={18} className="text-gray-500" />
+                        <button onClick={onClose} className="p-1.5 hover:bg-[#F8F8F8] rounded-lg transition-colors">
+                            <X size={18} className="text-[#505050]" />
                         </button>
                     )}
                 </div>
-                <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8 text-center">
-                    <BarChart3 size={48} className="mb-4 opacity-20" />
+                <div className="flex-1 flex flex-col items-center justify-center text-[#505050] p-8 text-center overflow-y-auto">
+                    <BarChart3 size={48} className="mb-4 opacity-20 text-[#582098]" />
                     <p className="text-sm">Ask a data-related question to see analytics here.</p>
                 </div>
             </div>
@@ -48,31 +48,31 @@ const AnalyticsPanel: React.FC<Props> = ({ data, onClose }) => {
 
     const getKpiColor = (label: string) => {
         const l = label.toLowerCase();
-        if (l.includes('risk') || l.includes('late') || l.includes('reject')) return 'text-orange-500 bg-orange-50';
-        if (l.includes('approval') || l.includes('success')) return 'text-emerald-500 bg-emerald-50';
-        if (l.includes('gmv') || l.includes('amount')) return 'text-blue-500 bg-blue-50';
-        return 'text-indigo-500 bg-indigo-50';
+        if (l.includes('risk') || l.includes('late') || l.includes('reject')) return 'text-[#dc2626] bg-[#dc2626]/10';
+        if (l.includes('approval') || l.includes('success')) return 'text-[#608818] bg-[#608818]/10';
+        if (l.includes('gmv') || l.includes('amount')) return 'text-[#582098] bg-[#582098]/10';
+        return 'text-[#582098] bg-[#582098]/10';
     };
 
     return (
-        <div className="h-full w-full flex flex-col bg-white">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">Analytics</h2>
+        <div className="h-full w-full flex flex-col bg-white overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+                <h2 className="text-lg font-semibold text-[#303848]">Analytics</h2>
                 {onClose && (
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
-                        <X size={18} className="text-gray-500" />
+                    <button onClick={onClose} className="p-1.5 hover:bg-[#F8F8F8] rounded-lg transition-colors">
+                        <X size={18} className="text-[#505050]" />
                     </button>
                 )}
             </div>
 
-            <div className="flex border-b border-gray-200 px-6">
+            <div className="flex border-b border-border px-6 flex-shrink-0">
                 {tabs.map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id
-                            ? 'border-indigo-600 text-indigo-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                            ? 'border-[#582098] text-[#582098]'
+                            : 'border-transparent text-[#505050] hover:text-[#303848]'
                             }`}
                     >
                         <tab.icon size={16} />
