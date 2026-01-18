@@ -186,13 +186,15 @@ class RiskTool(BaseTool):
     
     def _get_ml_score(self, user_id: str) -> Optional[dict]:
         """
-        Get ML-based risk score using UC2 model.
+        Get ML-based risk score using UC2 model with REAL data.
         
         Returns standardized risk score dict or None if model unavailable.
         """
         try:
             from .ml_tool import _load_uc2_model, _score_and_decide, _explain_score
+            from .local_data import get_local_data
             import pandas as pd
+            from datetime import datetime
             
             artifact = _load_uc2_model()
             if artifact is None:
@@ -201,26 +203,79 @@ class RiskTool(BaseTool):
             model = artifact["model"]
             features = artifact["features"]
             
-            # Generate synthetic features for this user
-            # In production, these would come from the database
-            import hashlib
-            hash_val = int(hashlib.md5(user_id.encode()).hexdigest()[:8], 16)
+            # Get real data from local adapter
+            adapter = get_local_data()
+            users = adapter.get_table("users")
+            orders = adapter.get_table("orders")
+            installments = adapter.get_table("installments")
+            disputes = adapter.get_table("disputes")
             
-            # Create reasonable feature values based on user hash
-            seed_val = hash_val % 1000 / 1000
+            # Defaults if data missing
+            account_age_days = 30
+            kyc_level = 1
+            late_rate = 0.0
+            ontime_rate = 1.0
+            active_plans = 0
+            orders_30d = 0
+            amount_30d = 0.0
+            disputes_90d = 0
             
+            # Calculate features if user exists
+            if users is not None and user_id in users["user_id"].values:
+                user_row = users[users["user_id"] == user_id].iloc[0]
+                
+                # Account Age
+                if "created_at" in user_row:
+                    try:
+                        created = pd.to_datetime(user_row["created_at"])
+                        account_age_days = (datetime.now() - created).days
+                    except:
+                        pass
+                
+                # KYC Level
+                if "kyc_level" in user_row:
+                    try:
+                        kyc_level = int(user_row["kyc_level"])
+                    except:
+                        pass
+            
+            # Calculate Aggregates if we have transaction history
+            if orders is not None:
+                user_orders = orders[orders["user_id"] == user_id]
+                
+                # Orders 30d
+                # (Simplified: assumes all valid dates or uses total count for demo reliability)
+                orders_30d = len(user_orders)
+                amount_30d = user_orders["amount"].sum() if not user_orders.empty else 0
+            
+            if installments is not None:
+                user_inst = installments[installments["user_id"] == user_id]
+                if not user_inst.empty:
+                    total_closed = len(user_inst[user_inst["status"] != "due"])
+                    total_late = len(user_inst[user_inst["status"] == "late"])
+                    if total_closed > 0:
+                        late_rate = total_late / total_closed
+                        ontime_rate = 1.0 - late_rate
+                    
+                    active_plans = len(user_inst[user_inst["status"] == "due"])
+            
+            if disputes is not None:
+                user_disp = disputes[disputes["user_id"] == user_id]
+                disputes_90d = len(user_disp)
+            
+            # Construct Feature Vector
             client_features = {
-                "account_age_days": int(30 + seed_val * 400),
-                "kyc_level_num": 1 if seed_val < 0.3 else 2,
-                "account_status_num": 1,
-                "late_rate_90d": seed_val * 0.5,
-                "ontime_rate_90d": 1 - seed_val * 0.5,
-                "active_plans": int(seed_val * 4),
-                "orders_30d": int(1 + seed_val * 10),
-                "amount_30d": 500 + seed_val * 3000,
-                "disputes_90d": int(seed_val * 3),
-                "refunds_90d": int(seed_val * 2),
-                "checkout_abandon_rate_30d": seed_val * 0.6,
+                "account_age_days": account_age_days,
+                "kyc_level_num": kyc_level,
+                "account_status_num": 1, # Default active
+                "late_rate_90d": late_rate,
+                "ontime_rate_90d": ontime_rate,
+                "active_plans": active_plans,
+                "orders_30d": orders_30d,
+                "amount_30d": amount_30d,
+                "disputes_90d": disputes_90d,
+                "refunds_90d": 0, # Default
+                "checkout_abandon_rate_30d": 0.0, # Default
             }
             
             # Prepare features DataFrame

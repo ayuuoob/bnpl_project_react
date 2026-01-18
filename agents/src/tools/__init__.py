@@ -8,6 +8,7 @@ from .risk_tool import RiskTool
 from .trace_tool import TraceTool
 from .local_data import LocalDataAdapter, get_local_data
 from .ml_tool import MLPredictionTool, get_ml_tool
+from .csv_tool import CSVTool
 
 __all__ = [
     "MCPClient",
@@ -23,5 +24,6 @@ __all__ = [
     "get_local_data",
     "MLPredictionTool",
     "get_ml_tool",
+    "CSVTool",
 ]
 

@@ -1,191 +1,184 @@
 """
-BNPL Analytics Agent - LangGraph State Machine
-
-This is the main entry point for the agent. It assembles the
-graph nodes and provides the interface for processing queries.
-
-Graph Flow:
-User Query → Router → Planner → Executor → Validator → Narrator → Response
-                                    ↑           │
-                                    └───────────┘ (retry if needed)
+BNPL Copilot Graph - Agentic Architecture
 """
 
 import os
-from typing import Optional, Literal, Union
-from langgraph.graph import StateGraph, END
+import time
+import asyncio
+from pathlib import Path
+from typing import Optional, Any
+from dotenv import load_dotenv
+from langchain_google_genai import ChatGoogleGenerativeAI
 
-from .state import AgentState
-from .nodes import (
-    RouterNode,
-    PlannerNode,
-    ExecutorNode,
-    ValidatorNode,
-    NarratorNode,
-)
+from .state import AgentState, Intent, create_state
+
+# The 4 Main Nodes
+from .nodes.planner import PlannerNode
+from .nodes.executor import ExecutorNode
+from .nodes.validator import ValidatorNode
+from .nodes.narrator import NarratorNode
+
+# ===== NUMPY CONVERSION HELPER =====
+import numpy as np
+def convert_numpy(obj):
+    """Recursively convert numpy types to native Python types."""
+    if isinstance(obj, dict):
+        return {k: convert_numpy(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy(i) for i in obj]
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return convert_numpy(obj.tolist())
+    return obj
 
 
-def get_llm() -> Optional[Union["ChatGoogleGenerativeAI", "ChatOpenAI"]]:
+# Load environment
+load_dotenv()
+
+# Data path
+DATA_PATH = Path(__file__).parent.parent.parent / "data"
+
+
+def get_llm() -> Optional[ChatGoogleGenerativeAI]:
+    """Initialize Gemini LLM."""
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        print("[Warning] GOOGLE_API_KEY not set, using fallback mode")
+        return None
+    
+    return ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        google_api_key=api_key,
+        temperature=0.1
+    )
+
+
+class BNPLCopilot:
     """
-    Initialize LLM - prioritizes Gemini, falls back to OpenAI.
-    Returns None if no API key is configured (agent still works with rule-based logic).
+    Agentic BNPL Analytics Copilot.
+    
+    Architecture:
+    1. Planner (Router/Gemini) -> Decides Intent
+    2. Executor (Handlers) -> Fetches Data
+    3. Validator (Summarizer) -> Checks Quality & Safety
+    4. Narrator (GenAI) -> Explains Insights
     """
-    # Try Gemini first (recommended - has free tier)
-    google_key = os.getenv("GOOGLE_API_KEY")
-    if google_key:
-        try:
-            from langchain_google_genai import ChatGoogleGenerativeAI
-            return ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash",  # Fast and free tier friendly
-                google_api_key=google_key,
-                temperature=0,
-            )
-        except ImportError:
-            print("Warning: langchain-google-genai not installed. Run: pip install langchain-google-genai")
     
-    # Fallback to OpenAI
-    openai_key = os.getenv("OPENAI_API_KEY")
-    if openai_key:
-        try:
-            from langchain_openai import ChatOpenAI
-            return ChatOpenAI(
-                model="gpt-4o-mini",
-                temperature=0,
-                api_key=openai_key,
-            )
-        except ImportError:
-            print("Warning: langchain-openai not installed. Run: pip install langchain-openai")
+    def __init__(self):
+        self.llm = get_llm()
+        
+        # Initialize the 4 Nodes
+        self.planner = PlannerNode(self.llm)
+        self.executor = ExecutorNode(str(DATA_PATH), self.llm)
+        self.validator = ValidatorNode()
+        self.narrator = NarratorNode(self.llm)
     
-    # No LLM configured - agent will use rule-based logic only
-    print("Note: No LLM API key configured. Agent will use rule-based classification only.")
-    return None
+    async def process(self, query: str) -> str:
+        """Process a user query through the 4-node pipeline."""
+        start_time = time.time()
+        
+        # Create state
+        state = create_state(query)
+        
+        # 1. PLAN: Classify intent
+        print(f"\n[Copilot] Processing: '{query}'")
+        state = await self.planner(state)
+        print(f"[Copilot] Intent: {state.intent.value}, Entities: {state.entities}")
+        
+        # 2. EXECUTE: Fetch data
+        state = await self.executor.execute(state)
+        
+        # Clean data (remove numpy types)
+        if state.data:
+            state.data = convert_numpy(state.data)
 
-
-def create_agent_graph():
-    """
-    Create the BNPL Analytics Agent graph.
+        # 3. VALIDATE: Summarize & Safey Check
+        data_summary = self.validator.validate_and_summarize(state.data)
+        
+        # 4. NARRATE: Generate response
+        if state.intent == Intent.CONVERSATION:
+            # Chat handler already sets response
+            response = state.response
+        elif state.error:
+            response = self.validator.format_fallback(state, error=state.error)
+        else:
+            try:
+                # Prepare args for narrator
+                filters_parts = []
+                if state.entities.city: filters_parts.append(f"City: {state.entities.city}")
+                if state.entities.category: filters_parts.append(f"Category: {state.entities.category}")
+                if state.entities.time_period: filters_parts.append(f"Time Period: {state.entities.time_period}")
+                if state.entities.limit: filters_parts.append(f"Limit: {state.entities.limit}")
+                if state.entities.status: filters_parts.append(f"Status: {state.entities.status}")
+                filters_str = ", ".join(filters_parts) if filters_parts else "None"
+                
+                explain_needed = "No"
+                q_lower = state.user_query.lower()
+                if state.intent == Intent.CONVERSATION and any(x in q_lower for x in ["what is", "what does", "meaning of", "explain"]):
+                     explain_needed = "Yes"
+                
+                # Generate
+                response = await self.narrator.generate_response(state, data_summary, filters_str, explain_needed)
+            except Exception as e:
+                print(f"[Copilot] Generation error: {e}")
+                response = self.validator.format_fallback(state, error=str(e))
+        
+        # Extract chart data if available
+        chart_data = None
+        if state.data and isinstance(state.data, dict):
+            chart_data = state.data.get("chart_data")
+        
+        # Track timing
+        elapsed = (time.time() - start_time) * 1000
+        print(f"[Copilot] Complete in {elapsed:.0f}ms")
+        
+        # Store for later access (webapp uses these)
+        self._last_chart_data = chart_data
+        self._last_data = state.data
+        
+        return response
     
-    Returns a compiled LangGraph that can process queries.
-    """
-    # Initialize LLM (optional - agent works without it)
-    llm = get_llm()
-    
-    # Initialize nodes
-    router = RouterNode(llm=llm)
-    planner = PlannerNode(llm=llm)
-    executor = ExecutorNode(llm=llm)
-    validator = ValidatorNode(llm=llm)
-    narrator = NarratorNode(llm=llm)
-    
-    # Build the graph
-    workflow = StateGraph(AgentState)
-    
-    # Add nodes
-    workflow.add_node("router", router)
-    workflow.add_node("planner", planner)
-    workflow.add_node("executor", executor)
-    workflow.add_node("validator", validator)
-    workflow.add_node("narrator", narrator)
-    
-    # Define edges
-    workflow.set_entry_point("router")
-    workflow.add_edge("router", "planner")
-    workflow.add_edge("planner", "executor")
-    workflow.add_edge("executor", "validator")
-    
-    # Conditional edge from validator
-    def should_retry(state: AgentState) -> Literal["executor", "narrator"]:
-        """Determine if we should retry or proceed to narrator."""
-        if state.validation and state.validation.retry_needed:
-            if state.retry_count < state.max_retries:
-                return "executor"
-        return "narrator"
-    
-    workflow.add_conditional_edges(
-        "validator",
-        should_retry,
-        {
-            "executor": "executor",
-            "narrator": "narrator",
+    async def process_with_chart(self, query: str) -> dict:
+        """Process query and return response with chart data."""
+        response = await self.process(query)
+        return {
+            "response": response,
+            "chart_data": getattr(self, '_last_chart_data', None)
         }
-    )
-    
-    workflow.add_edge("narrator", END)
-    
-    # Compile and return
-    return workflow.compile()
 
 
-# Create a singleton instance
-_agent_graph = None
+# Global copilot instance
+_copilot = None
 
 
-def get_agent():
-    """Get the singleton agent graph instance."""
-    global _agent_graph
-    if _agent_graph is None:
-        _agent_graph = create_agent_graph()
-    return _agent_graph
+def get_copilot() -> BNPLCopilot:
+    """Get or create the global copilot instance."""
+    global _copilot
+    if _copilot is None:
+        _copilot = BNPLCopilot()
+    return _copilot
 
 
-async def run_query(query: str, session_id: Optional[str] = None) -> str:
-    """
-    Run a query through the agent.
-    
-    Args:
-        query: Natural language question
-        session_id: Optional session identifier for tracing
-        
-    Returns:
-        Structured response string
-    """
-    agent = get_agent()
-    
-    # Create initial state
-    initial_state = AgentState(
-        user_query=query,
-        session_id=session_id,
-    )
-    
-    # Run the graph
-    final_state = await agent.ainvoke(initial_state)
-    
-    # Return the response
-    if isinstance(final_state, dict):
-        return final_state.get("final_response", "No response generated")
-    return final_state.final_response or "No response generated"
+async def run_query(query: str) -> str:
+    """Main entry point for processing a query."""
+    copilot = get_copilot()
+    return await copilot.process(query)
 
 
-def run_query_sync(query: str, session_id: Optional[str] = None) -> str:
-    """Synchronous version of run_query."""
-    import asyncio
-    return asyncio.run(run_query(query, session_id))
+async def run_query_with_chart(query: str) -> dict:
+    """Process query and return response with chart data."""
+    copilot = get_copilot()
+    return await copilot.process_with_chart(query)
 
 
-# Demo function
-async def demo():
-    """Run demo queries."""
-    demo_queries = [
-        "What was our GMV last month?",
-        "Which merchants have the highest dispute rates?",
-        "What is our late payment rate by cohort?",
-        "How many active users do we have?",
-        "What is the checkout conversion rate?",
-    ]
-    
-    print("=" * 60)
-    print("BNPL Analytics Agent - Demo")
-    print("=" * 60)
-    
-    for query in demo_queries:
-        print(f"\n{'='*60}")
-        print(f"Query: {query}")
-        print("=" * 60)
-        
-        response = await run_query(query)
-        print(response)
-        print()
+def run_query_sync(query: str) -> str:
+    """Synchronous wrapper for run_query."""
+    return asyncio.run(run_query(query))
 
 
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(demo())
+def run_query_with_chart_sync(query: str) -> dict:
+    """Synchronous wrapper for run_query_with_chart."""
+    return asyncio.run(run_query_with_chart(query))

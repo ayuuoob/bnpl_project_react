@@ -1,229 +1,200 @@
 """
-Router Node - Classifies user intent and extracts entities.
+BNPL Copilot Router - LLM-First Intent Classification
 
-This is the first node in the graph. It analyzes the user's
-natural language query to determine:
-1. Intent category (growth, funnel, risk, merchant, finance)
-2. Entities (metrics, time window, filters, groupings)
+Uses Gemini to classify user intent and extract entities.
 """
 
+import json
 import re
-from datetime import datetime, timedelta
 from typing import Optional
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 
-from ..state import AgentState, QueryEntities, TimeRange
+from ..state import AgentState, Intent, QueryEntities
 
 
-# Intent patterns for rule-based classification
-INTENT_PATTERNS = {
-    "growth_analytics": [
-        r"\bgmv\b", r"\brevenue\b", r"\bactive users?\b", r"\bgrowth\b",
-        r"\bacquisition\b", r"\brepeat\s*(user|rate)\b", r"\bnew users?\b",
-        r"\bmonth\s*over\s*month\b", r"\bweek\s*over\s*week\b",
-    ],
-    "funnel": [
-        r"\bconversion\b", r"\bcheckout\b", r"\bapproval\s*rate\b",
-        r"\bdrop\s*off\b", r"\babandon\b", r"\bfunnel\b",
-    ],
-    "risk": [
-        r"\blate\b", r"\bdelinquen\w*\b", r"\boverdue\b", r"\brisk\s*score\b",
-        r"\bon[\-\s]?time\b", r"\bcohort\s*performance\b", r"\bbucket\b",
-    ],
-    "merchant_perf": [
-        r"\bmerchant\b", r"\btop\s*merchant\b", r"\bmerchant\s*gmv\b",
-        r"\bhigh[\-\s]?risk\s*merchant\b", r"\bmerchant\s*performance\b",
-    ],
-    "disputes_refunds": [
-        r"\bdispute\b", r"\brefund\b", r"\bchargeback\b", r"\breturn\b",
-    ],
-}
+ROUTER_PROMPT = """You are an intent classifier for a BNPL (Buy Now Pay Later) analytics copilot.
 
-# Metric extraction patterns
-METRIC_PATTERNS = {
-    "gmv": [r"\bgmv\b", r"\bgross\s*merchandise\b", r"\btotal\s*value\b"],
-    "approval_rate": [r"\bapproval\s*rate\b", r"\bapproved\s*%\b"],
-    "active_users": [r"\bactive\s*users?\b", r"\bmau\b", r"\bdau\b"],
-    "repeat_user_rate": [r"\brepeat\s*(user|rate)\b", r"\bretention\b"],
-    "late_rate": [r"\blate\s*(payment)?\s*rate\b", r"\boverdue\s*rate\b"],
-    "delinquency_buckets": [r"\bdelinquency\s*bucket\b", r"\bbucket\b"],
-    "dispute_rate": [r"\bdispute\s*rate\b"],
-    "refund_rate": [r"\brefund\s*rate\b"],
-    "checkout_conversion": [r"\bcheckout\s*conversion\b", r"\bconversion\s*rate\b"],
-    "repayment_velocity": [r"\brepayment\s*velocity\b", r"\bpayment\s*speed\b"],
-}
+Classify the user's query into ONE of these intents:
+- kpi: Business metrics like GMV, approval rate, order count, revenue
+- risk: Risk scores, late payments, risky users/installments, explanations
+- lookup: User/merchant/order details, lists, filtering by city/category
+- comparison: Comparing dimensions (by city, category, time period)
+- conversation: Greetings, help, general questions
+
+Also extract any entities mentioned:
+- user_id: e.g. "user_00025" or "user 25"  
+- installment_id: e.g. "inst_0000141"
+- order_id: e.g. "order_000081"
+- merchant_id: e.g. "merchant_0010"
+- category: fashion, electronics, travel, home
+- city: Casablanca, Marrakech, Rabat
+- metric: GMV, approval_rate, late_rate, etc.
+- limit: number for "top N" queries
+
+User query: {query}
+
+Respond in JSON format ONLY:
+{{
+    "intent": "kpi|risk|lookup|comparison|conversation",
+    "confidence": 0.0-1.0,
+    "entities": {{
+        "user_id": null or "user_XXXXX",
+        "installment_id": null or "inst_XXXXXXX",
+        "order_id": null or "order_XXXXXX",
+        "merchant_id": null or "merchant_XXXX",
+        "category": null or "fashion|electronics|travel|home",
+        "city": null or "Casablanca|Marrakech|Rabat",
+        "metric": null or "metric name",
+        "limit": null or number
+    }}
+}}"""
 
 
 class RouterNode:
     """
-    Classifies user intent and extracts query entities.
+    LLM-first router using Gemini for intent classification.
     
-    Uses a hybrid approach:
-    1. Rule-based pattern matching for speed
-    2. LLM fallback for ambiguous queries
+    Fast, clean, and accurate classification with entity extraction.
     """
     
-    def __init__(self, llm: Optional[ChatOpenAI] = None):
+    def __init__(self, llm: Optional[ChatGoogleGenerativeAI] = None):
         self.llm = llm
-        self._router_prompt = self._build_router_prompt()
-    
-    def _build_router_prompt(self) -> ChatPromptTemplate:
-        """Build the LLM router prompt."""
-        return ChatPromptTemplate.from_messages([
-            ("system", """You are an intent classifier for a BNPL analytics agent.
-
-Given a user query, extract:
-1. intent: One of [growth_analytics, funnel, risk, merchant_perf, disputes_refunds, ad_hoc]
-2. metrics: List of KPI names requested
-3. time_window: Date range mentioned (or null for default 30 days)
-4. group_by: Dimensions to break down by (merchant, city, cohort, etc.)
-5. comparison: Whether comparing periods (true/false)
-
-Respond in JSON format only."""),
-            ("human", "{query}")
-        ])
+        self.prompt = ChatPromptTemplate.from_template(ROUTER_PROMPT)
     
     async def __call__(self, state: AgentState) -> AgentState:
-        """Process the user query and classify intent."""
+        """Classify intent and extract entities from user query."""
         state.current_node = "router"
-        query = state.user_query.lower()
+        query = state.user_query.strip()
         
-        # 1. Classify intent
-        state.intent = self._classify_intent(query)
+        # Handle empty query
+        if not query:
+            state.intent = Intent.CONVERSATION
+            state.confidence = 1.0
+            return state
         
-        # 2. Extract entities
-        state.entities = self._extract_entities(query)
+        # Quick check for greetings (no LLM needed)
+        if self._is_greeting(query):
+            state.intent = Intent.CONVERSATION
+            state.confidence = 1.0
+            return state
         
-        # 3. Use LLM for complex cases if available
-        if state.intent == "ad_hoc" and self.llm:
-            await self._llm_classify(state)
+        # Use LLM for classification
+        if self.llm:
+            try:
+                result = await self._llm_classify(query)
+                state.intent = Intent(result["intent"])
+                state.confidence = result.get("confidence", 0.8)
+                state.entities = self._parse_entities(result.get("entities", {}))
+                print(f"[Router] LLM classified: {state.intent.value} (confidence: {state.confidence:.2f})")
+            except Exception as e:
+                print(f"[Router] LLM error: {e}, using fallback")
+                self._fallback_classify(state, query)
+        else:
+            print("[Router] No LLM, using fallback")
+            self._fallback_classify(state, query)
         
         return state
     
-    def _classify_intent(self, query: str) -> str:
-        """Rule-based intent classification."""
-        scores = {}
+    async def _llm_classify(self, query: str) -> dict:
+        """Use Gemini to classify intent."""
+        chain = self.prompt | self.llm
+        response = await chain.ainvoke({"query": query})
         
-        for intent, patterns in INTENT_PATTERNS.items():
-            score = 0
-            for pattern in patterns:
-                if re.search(pattern, query, re.IGNORECASE):
-                    score += 1
-            scores[intent] = score
+        # Parse JSON from response
+        content = response.content
         
-        # Get intent with highest score
-        if scores:
-            best_intent = max(scores.items(), key=lambda x: x[1])
-            if best_intent[1] > 0:
-                return best_intent[0]
+        # Extract JSON from markdown code blocks if present
+        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', content)
+        if json_match:
+            content = json_match.group(1)
         
-        return "ad_hoc"
+        return json.loads(content)
     
-    def _extract_entities(self, query: str) -> QueryEntities:
-        """Extract entities from query."""
+    def _is_greeting(self, query: str) -> bool:
+        """Check if query is a simple greeting."""
+        greetings = [
+            "hello", "hi", "hey", "bonjour", "salut",
+            "good morning", "good afternoon", "good evening",
+            "how are you", "what's up", "yo"
+        ]
+        query_lower = query.lower().strip()
+        return any(query_lower.startswith(g) or query_lower == g for g in greetings)
+    
+    def _fallback_classify(self, state: AgentState, query: str):
+        """Simple keyword-based fallback classification."""
+        query_lower = query.lower()
+        
+        # Risk keywords
+        if any(w in query_lower for w in ["risk", "risky", "late", "why", "explain", "reason"]):
+            state.intent = Intent.RISK
+            state.confidence = 0.7
+        # KPI keywords
+        elif any(w in query_lower for w in ["gmv", "revenue", "rate", "total", "kpi", "metric"]):
+            state.intent = Intent.KPI
+            state.confidence = 0.7
+        # Lookup keywords
+        elif any(w in query_lower for w in ["show", "list", "user", "merchant", "order"]):
+            state.intent = Intent.LOOKUP
+            state.confidence = 0.7
+        # Comparison keywords
+        elif any(w in query_lower for w in ["compare", "by city", "by category", "vs"]):
+            state.intent = Intent.COMPARISON
+            state.confidence = 0.7
+        else:
+            state.intent = Intent.CONVERSATION
+            state.confidence = 0.5
+        
+        # Extract entities
+        self._extract_entities_fallback(state, query)
+    
+    def _extract_entities_fallback(self, state: AgentState, query: str):
+        """Extract entities using regex patterns."""
         entities = QueryEntities()
         
-        # Extract metrics
-        for metric, patterns in METRIC_PATTERNS.items():
-            for pattern in patterns:
-                if re.search(pattern, query, re.IGNORECASE):
-                    entities.metrics.append(metric)
-                    break
+        # User ID
+        match = re.search(r'user[_\s]?(\d+)', query, re.IGNORECASE)
+        if match:
+            entities.user_id = f"user_{match.group(1).zfill(5)}"
         
-        # Extract time window
-        entities.time_window = self._extract_time_window(query)
+        # Installment ID
+        match = re.search(r'inst[_\s]?(\d+)', query, re.IGNORECASE)
+        if match:
+            entities.installment_id = f"inst_{match.group(1).zfill(7)}"
         
-        # Extract group_by dimensions
-        entities.group_by = self._extract_group_by(query)
+        # Order ID
+        match = re.search(r'order[_\s]?(\d+)', query, re.IGNORECASE)
+        if match:
+            entities.order_id = f"order_{match.group(1).zfill(6)}"
         
-        # Check for comparison
-        if re.search(r"\bvs\.?\b|\bcompare\b|\btrend\b|\bover\s*(time|month|week)\b", query, re.IGNORECASE):
-            entities.comparison = True
+        # City
+        for city in ["casablanca", "marrakech", "rabat"]:
+            if city in query.lower():
+                entities.city = city.capitalize()
+                break
         
-        # Extract limit
-        limit_match = re.search(r"\btop\s*(\d+)\b", query, re.IGNORECASE)
-        if limit_match:
-            entities.limit = int(limit_match.group(1))
+        # Category
+        for cat in ["fashion", "electronics", "travel", "home"]:
+            if cat in query.lower():
+                entities.category = cat
+                break
         
-        return entities
+        # Limit (top N)
+        match = re.search(r'top\s*(\d+)', query, re.IGNORECASE)
+        if match:
+            entities.limit = int(match.group(1))
+        
+        state.entities = entities
     
-    def _extract_time_window(self, query: str) -> Optional[TimeRange]:
-        """Extract time window from query."""
-        today = datetime.now()
-        
-        # Last N days
-        days_match = re.search(r"\blast\s*(\d+)\s*days?\b", query, re.IGNORECASE)
-        if days_match:
-            days = int(days_match.group(1))
-            return TimeRange(
-                start_date=(today - timedelta(days=days)).strftime("%Y-%m-%d"),
-                end_date=today.strftime("%Y-%m-%d"),
-            )
-        
-        # Last week
-        if re.search(r"\blast\s*week\b", query, re.IGNORECASE):
-            return TimeRange(
-                start_date=(today - timedelta(days=7)).strftime("%Y-%m-%d"),
-                end_date=today.strftime("%Y-%m-%d"),
-            )
-        
-        # Last month
-        if re.search(r"\blast\s*month\b", query, re.IGNORECASE):
-            return TimeRange(
-                start_date=(today - timedelta(days=30)).strftime("%Y-%m-%d"),
-                end_date=today.strftime("%Y-%m-%d"),
-            )
-        
-        # Last quarter / 90 days
-        if re.search(r"\blast\s*(quarter|90\s*days)\b", query, re.IGNORECASE):
-            return TimeRange(
-                start_date=(today - timedelta(days=90)).strftime("%Y-%m-%d"),
-                end_date=today.strftime("%Y-%m-%d"),
-            )
-        
-        # Default: last 30 days
-        return TimeRange(
-            start_date=(today - timedelta(days=30)).strftime("%Y-%m-%d"),
-            end_date=today.strftime("%Y-%m-%d"),
+    def _parse_entities(self, raw: dict) -> QueryEntities:
+        """Parse entities from LLM response."""
+        return QueryEntities(
+            user_id=raw.get("user_id"),
+            installment_id=raw.get("installment_id"),
+            order_id=raw.get("order_id"),
+            merchant_id=raw.get("merchant_id"),
+            category=raw.get("category"),
+            city=raw.get("city"),
+            metric=raw.get("metric"),
+            limit=raw.get("limit")
         )
-    
-    def _extract_group_by(self, query: str) -> list:
-        """Extract grouping dimensions."""
-        group_by = []
-        
-        if re.search(r"\bby\s*(merchant|store)\b", query, re.IGNORECASE):
-            group_by.append("merchant_id")
-        if re.search(r"\bby\s*city\b", query, re.IGNORECASE):
-            group_by.append("city")
-        if re.search(r"\bby\s*category\b", query, re.IGNORECASE):
-            group_by.append("category")
-        if re.search(r"\bby\s*cohort\b", query, re.IGNORECASE):
-            group_by.append("signup_week")
-        if re.search(r"\bby\s*day\b", query, re.IGNORECASE):
-            group_by.append("date")
-        
-        return group_by
-    
-    async def _llm_classify(self, state: AgentState) -> None:
-        """Use LLM for complex classification."""
-        if not self.llm:
-            return
-        
-        try:
-            chain = self._router_prompt | self.llm
-            response = await chain.ainvoke({"query": state.user_query})
-            
-            import json
-            result = json.loads(response.content)
-            
-            if result.get("intent"):
-                state.intent = result["intent"]
-            if result.get("metrics"):
-                state.entities.metrics.extend(result["metrics"])
-            if result.get("group_by"):
-                state.entities.group_by.extend(result["group_by"])
-                
-        except Exception:
-            # Keep rule-based classification
-            pass

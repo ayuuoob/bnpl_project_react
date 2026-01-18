@@ -1,115 +1,81 @@
 """
-LangGraph State Definition for BNPL Analytics Agent.
+BNPL Copilot State - Simplified Version
 
-Defines the state that flows through the graph nodes:
-Router → Planner → Executor → Validator → Narrator
+Defines the state that flows through the agent graph.
 """
 
-from typing import Optional, List, Literal, Any
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
-from datetime import datetime
+from enum import Enum
 
 
-class TimeRange(BaseModel):
-    """Time range for queries."""
-    start_date: str
-    end_date: str
+class Intent(str, Enum):
+    """Simplified intent classification."""
+    KPI = "kpi"                    # Business metrics (GMV, approval rate, etc.)
+    RISK = "risk"                  # Risk analysis (scores, explanations)
+    LOOKUP = "lookup"              # Data lookups (users, merchants, orders)
+    COMPARISON = "comparison"      # Compare dimensions
+    CONVERSATION = "conversation"  # Greetings, help, general chat
 
 
 class QueryEntities(BaseModel):
-    """Extracted entities from user query."""
-    
-    metrics: List[str] = Field(default_factory=list, description="KPIs requested")
-    time_window: Optional[TimeRange] = None
-    merchant_id: Optional[str] = None
+    """Entities extracted from user query."""
     user_id: Optional[str] = None
-    city: Optional[str] = None
+    installment_id: Optional[str] = None
+    order_id: Optional[str] = None
+    merchant_id: Optional[str] = None
     category: Optional[str] = None
-    cohort: Optional[str] = None
-    group_by: List[str] = Field(default_factory=list, description="Dimensions for breakdown")
-    limit: Optional[int] = None
-    comparison: bool = Field(default=False, description="Whether to compare periods")
-
-
-class ToolCall(BaseModel):
-    """Record of a tool invocation."""
-    
-    tool_name: str
-    parameters: dict = Field(default_factory=dict)
-    result: Optional[str] = None
-    error: Optional[str] = None
-    latency_ms: Optional[float] = None
-
-
-class ExecutionPlan(BaseModel):
-    """Plan for executing the query."""
-    
-    primary_tool: Literal["kpi", "sql", "schema", "risk"]
-    primary_query: str
-    drill_down_queries: List[str] = Field(default_factory=list)
-    fallback_strategy: Optional[str] = None
-
-
-class ValidationResult(BaseModel):
-    """Result of validating tool outputs."""
-    
-    is_valid: bool
-    issues: List[str] = Field(default_factory=list)
-    adjustments: List[str] = Field(default_factory=list)
-    retry_needed: bool = False
+    city: Optional[str] = None
+    status: Optional[str] = None
+    time_period: Optional[str] = None  # e.g. "last 30 days", "this month"
+    limit: Optional[int] = None        # e.g. "top 5"
+    metric: Optional[str] = None       # e.g. "GMV", "approval rate"
 
 
 class AgentState(BaseModel):
     """
-    State that flows through the LangGraph nodes.
+    Simplified agent state for BNPL Copilot.
     
-    Updated by each node as the query is processed.
+    Flow: Query → Router → Handler → Response
     """
     
     # Input
-    user_query: str
-    session_id: Optional[str] = None
+    user_query: str = ""
     
-    # Router output
-    intent: Optional[Literal[
-        "growth_analytics", 
-        "funnel", 
-        "risk", 
-        "merchant_perf", 
-        "disputes_refunds", 
-        "ad_hoc"
-    ]] = None
+    # Classification (from Router)
+    intent: Intent = Intent.CONVERSATION
     entities: QueryEntities = Field(default_factory=QueryEntities)
+    confidence: float = 0.0
     
-    # Planner output
-    plan: Optional[ExecutionPlan] = None
+    # Execution (from Handler)
+    data: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
     
-    # Executor output
-    tool_calls: List[ToolCall] = Field(default_factory=list)
-    raw_results: List[dict] = Field(default_factory=list)
-    
-    # Validator output
-    validation: Optional[ValidationResult] = None
-    retry_count: int = 0
-    max_retries: int = 1
-    
-    # Narrator output
-    final_response: Optional[str] = None
+    # Output (from Response Generator)
+    response: str = ""
+    chart_data: Optional[Dict[str, Any]] = None
     
     # Metadata
-    start_time: datetime = Field(default_factory=datetime.now)
-    current_node: Optional[str] = None
-    errors: List[str] = Field(default_factory=list)
-    
-    class Config:
-        arbitrary_types_allowed = True
+    current_node: str = ""
+    processing_time_ms: float = 0.0
 
 
-class ResponseFormat(BaseModel):
-    """Structured response format."""
-    
-    summary: str = Field(description="1-3 line answer summary")
-    key_metrics: List[dict] = Field(default_factory=list)
-    drivers: List[str] = Field(default_factory=list, description="Why bullets")
-    recommendations: List[dict] = Field(default_factory=list)
-    data_assumptions: dict = Field(default_factory=dict)
+# Quick helpers
+def create_state(query: str) -> AgentState:
+    """Create a new agent state from a user query."""
+    return AgentState(user_query=query)
+
+
+def is_risk_query(state: AgentState) -> bool:
+    """Check if this is a risk-related query."""
+    return state.intent == Intent.RISK
+
+
+def is_lookup_query(state: AgentState) -> bool:
+    """Check if this is a data lookup query."""
+    return state.intent == Intent.LOOKUP
+
+
+def has_entity(state: AgentState, entity_type: str) -> bool:
+    """Check if a specific entity was extracted."""
+    return getattr(state.entities, entity_type, None) is not None

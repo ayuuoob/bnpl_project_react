@@ -136,6 +136,10 @@ class SQLTool(BaseTool):
         if validation.warnings:
             warnings_text = "Warnings:\n" + "\n".join(f"- {w}" for w in validation.warnings) + "\n\n"
         
+        # Check for local data override
+        if os.getenv("USE_LOCAL_DATA") == "true":
+            return warnings_text + self._execute_local_sql(validation.query)
+
         # Execute via MCP
         client = get_mcp_client()
         response: MCPResponse = await client.call("sql.run", {"query": validation.query})
@@ -149,6 +153,49 @@ class SQLTool(BaseTool):
         # Fallback to mock execution for demo
         mock_result = self._mock_execute(validation.query)
         return warnings_text + mock_result
+    
+    def _execute_local_sql(self, query: str) -> str:
+        """Execute SQL query against local CSV data using SQLite."""
+        try:
+            import sqlite3
+            import pandas as pd
+            from .local_data import get_local_data
+            
+            adapter = get_local_data()
+            conn = sqlite3.connect(":memory:")
+            
+            # Identify tables needed
+            tables_needed = set()
+            allowed_tables = adapter.tables
+            for table in allowed_tables:
+                if table in query.lower():
+                    tables_needed.add(table)
+            
+            # Load needed tables into SQLite
+            for table in tables_needed:
+                df = adapter.get_table(table)
+                if df is not None:
+                    # Fix date columns for proper SQL comparison if needed
+                    # SQLite is string-based for dates, usually works if ISO format
+                    df.to_sql(table, conn, index=False)
+            
+            # Execute query
+            cursor = conn.cursor()
+            cursor.execute(query)
+            
+            columns = [description[0] for description in cursor.description]
+            rows = cursor.fetchall()
+            
+            result_data = {
+                "columns": columns,
+                "rows": rows
+            }
+            
+            conn.close()
+            return self._format_results(result_data)
+            
+        except Exception as e:
+            return f"Local SQL Execution Error: {str(e)}\n\n(Note: Using in-memory SQLite wrapper for local CSVs)"
     
     def _validate_query(self, query: str, limit: Optional[int] = None) -> SQLValidationResult:
         """Validate SQL query against guardrails."""

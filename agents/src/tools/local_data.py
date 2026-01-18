@@ -46,6 +46,135 @@ class LocalDataAdapter:
                 print(f"Loaded: {table_name} ({len(df)} rows)")
             except Exception as e:
                 print(f"Error loading {csv_file}: {e}")
+                
+        # --- Batch Score Users for SQL Queries ---
+        if "users" in self._dataframes:
+            try:
+                self._enrich_users_with_scores()
+            except Exception as e:
+                print(f"Error enriching users with scores: {e}")
+
+    def _enrich_users_with_scores(self):
+        """Calculate and attach ML trust scores to users table."""
+        try:
+            from .ml_tool import _load_uc2_model, _score_and_decide
+            from datetime import datetime
+            
+            artifact = _load_uc2_model()
+            if artifact is None:
+                return
+            
+            model = artifact["model"]
+            features_list = artifact["features"]
+            
+            users = self._dataframes.get("users")
+            orders = self._dataframes.get("orders")
+            installments = self._dataframes.get("installments")
+            disputes = self._dataframes.get("disputes")
+            
+            if users is None:
+                return
+
+            # Vectorized feature calculation would be better, but loop is safer for complex logic
+            # For hackathon/demo scale (small data), iteration is acceptable
+            
+            scores = []
+            decisions = []
+            
+            # Pre-calculate aggregates for speed
+            order_stats = {}
+            if orders is not None:
+                order_stats = orders.groupby("user_id").agg({
+                    "order_id": "count",
+                    "amount": "sum"
+                }).to_dict(orient="index")
+            
+            inst_stats = {}
+            if installments is not None:
+                # Group by user, then count status
+                def calc_rates(x):
+                    closed = (x["status"] != "due").sum()
+                    late = (x["status"] == "late").sum()
+                    active = (x["status"] == "due").sum()
+                    late_rate = late / closed if closed > 0 else 0.0
+                    return pd.Series([late_rate, active], index=["late_rate", "active"])
+                
+                inst_stats = installments.groupby("user_id").apply(calc_rates).to_dict(orient="index")
+
+            dispute_stats = {}
+            if disputes is not None:
+                dispute_stats = disputes.groupby("user_id").size().to_dict()
+
+            rows_to_predict = []
+            
+            for _, row in users.iterrows():
+                uid = row.get("user_id")
+                
+                # Features
+                acc_age = 30
+                if "created_at" in row:
+                    try:
+                        acc_age = (datetime.now() - pd.to_datetime(row["created_at"])).days
+                    except: pass
+                
+                kyc = 1
+                try: kyc = int(row.get("kyc_level", 1)) 
+                except: pass
+                
+                # Aggregates
+                u_orders = order_stats.get(uid, {})
+                orders_30d = u_orders.get("order_id", 0)
+                amount_30d = u_orders.get("amount", 0)
+                
+                u_inst = inst_stats.get(uid, {})
+                late_rate = u_inst.get("late_rate", 0.0)
+                active_plans = int(u_inst.get("active", 0))
+                ontime_rate = 1.0 - late_rate
+                
+                disputes_90d = dispute_stats.get(uid, 0)
+                
+                feat_dict = {
+                    "account_age_days": acc_age,
+                    "kyc_level_num": kyc,
+                    "account_status_num": 1,
+                    "late_rate_90d": late_rate,
+                    "ontime_rate_90d": ontime_rate,
+                    "active_plans": active_plans,
+                    "orders_30d": orders_30d,
+                    "amount_30d": amount_30d,
+                    "disputes_90d": disputes_90d,
+                    "refunds_90d": 0,
+                    "checkout_abandon_rate_30d": 0.0
+                }
+                rows_to_predict.append(feat_dict)
+            
+            if not rows_to_predict:
+                return
+
+            # Batch Predict
+            X = pd.DataFrame(rows_to_predict)
+            # Ensure columns
+            for f in features_list:
+                if f not in X.columns: X[f] = 0
+            branch_X = X[features_list]
+            
+            # Predict
+            # _score_and_decide returns (risk_proba, trust_score, decision)
+            # But it might not be vectorized in the tool depending on implementation.
+            # Let's call model.predict_proba directly for batch speed if possible, 
+            # or loop if safe. The ML tool helper is likely scalar.
+            # Accessing model directly:
+            probs = model.predict_proba(branch_X)[:, 1] # Probability of Class 1 (Risk)
+            
+            # Add to users DataFrame
+            self._dataframes["users"]["risk_probability"] = probs
+            self._dataframes["users"]["trust_score"] = ((1 - probs) * 100).astype(int)
+            self._dataframes["users"]["risk_score"] = ((1 - probs) * 100).astype(int) # Alias for "User risk score" requests
+            
+            print(f"Enriched users table with ML scores. Avg Trust Score: {self._dataframes['users']['trust_score'].mean():.1f}")
+            
+        except Exception as e:
+            print(f"Batch scoring failed: {e}")
     
     @property
     def tables(self) -> List[str]:
