@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { AnalyticsPayload } from '../types';
 import ChartRenderer from './ChartRenderer';
+import { ExportButtons } from './ExportButtons';
 import { TrendingUp, DollarSign, AlertTriangle, Clock, X, BarChart3, FileText, LayoutGrid } from 'lucide-react';
 
 interface Props {
@@ -135,8 +136,13 @@ const AnalyticsPanel: React.FC<Props> = ({ data, onClose }) => {
                             <div className="space-y-4 mt-4">
                                 {data.tables.map((table) => (
                                     <div key={table.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                                        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                                        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
                                             <h3 className="text-sm font-semibold text-gray-700">{table.title}</h3>
+                                            <ExportButtons
+                                                title={table.title}
+                                                columns={table.columns}
+                                                rows={table.rows}
+                                            />
                                         </div>
                                         <div className="overflow-x-auto">
                                             <table className="w-full text-sm text-left">
@@ -189,8 +195,13 @@ const AnalyticsPanel: React.FC<Props> = ({ data, onClose }) => {
                         {data.tables && data.tables.length > 0 ? (
                             data.tables.map((table) => (
                                 <div key={table.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                    <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                                    <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
                                         <h3 className="text-sm font-semibold text-gray-700">{table.title}</h3>
+                                        <ExportButtons
+                                            title={table.title}
+                                            columns={table.columns}
+                                            rows={table.rows}
+                                        />
                                     </div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm text-left">

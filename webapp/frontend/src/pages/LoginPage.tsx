@@ -17,23 +17,27 @@ import {
   setCurrentUser,
   type UserRole,
 } from "../lib/auth";
+import { Code } from "lucide-react";
 
 const roleColors: Record<UserRole, string> = {
   admin: "#582098",
   analyst: "#608818",
   viewer: "#505050",
+  developer: "#0ea5e9",
 };
 
 const roleDescriptions: Record<UserRole, string> = {
   admin: "Full access to all features and settings",
   analyst: "View and export data, create reports",
   viewer: "Read-only access to dashboards",
+  developer: "Access to Feedback Dashboard only",
 };
 
 const roleIcons: Record<UserRole, typeof Shield> = {
   admin: Shield,
   analyst: BarChart3,
   viewer: User,
+  developer: Code,
 };
 
 export default function LoginPage() {
@@ -57,7 +61,12 @@ export default function LoginPage() {
     if (user) {
       // Store user in sessionStorage for demo purposes
       setCurrentUser(user);
-      navigate("/dashboard", { replace: true });
+      // Redirect developers to feedback page only
+      if (user.role === "developer") {
+        navigate("/feedback", { replace: true });
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
     } else {
       setError("Invalid email or password. Please try again.");
     }

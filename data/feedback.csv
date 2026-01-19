@@ -1,0 +1,16 @@
+timestamp,query,response_snippet,rating,comment
+2026-01-19T13:26:15.020560,,"👋 Hello! I'm your BNPL Analytics Copilot. I can help you with:
+
+📊 **KPIs**: GMV, approval rate, late payment rate
+⚠️ **Risk**: Risky installments, user risk explanations
+🔍 **Lookups**: Users, merchants, orders
+
+What would you like to know?",positive,
+2026-01-19T13:27:14.767579,,"📊 **Users in Rabat**
+
+We found 20 users located in Rabat. The full list of these users is displayed in the UI.
+
+💡 **Insight**: There are 20 users registered in the city of Rabat within your BNPL system.
+
+📈 **Recommended Chart**: A table to review the detailed information for each user in Rabat.",negative,
+2026-01-19T15:51:25.251344,,"I'm your BNPL Analytics assistant. I can help you with business metrics like GMV and approval rates, risk analysis for late payment predictions, and data lookups for users, merchants, and orders. Try asking something like 'What's the total GMV?' or 'Show me risky installments'.",positive,

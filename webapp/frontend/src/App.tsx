@@ -4,7 +4,9 @@ import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import DocsPage from "./pages/DocsPage";
 import CopilotPage from "./pages/CopilotPage";
+import FeedbackPage from "./pages/FeedbackPage";
 import RequireAuth from "./routes/RequireAuth";
+import RequireRole from "./routes/RequireRole";
 
 function App() {
   return (
@@ -22,20 +24,31 @@ function App() {
           </RequireAuth>
         }
       />
+      {/* Admin, Analyst, and Developer only: Documentation */}
       <Route
         path="/docs"
         element={
-          <RequireAuth>
+          <RequireRole allowedRoles={["admin", "analyst", "developer"]}>
             <DocsPage />
-          </RequireAuth>
+          </RequireRole>
         }
       />
+      {/* Admin and Analyst only: Copilot Chat */}
       <Route
         path="/copilot"
         element={
-          <RequireAuth>
+          <RequireRole allowedRoles={["admin", "analyst"]}>
             <CopilotPage />
-          </RequireAuth>
+          </RequireRole>
+        }
+      />
+      {/* Admin and Developer only: Feedback Dashboard */}
+      <Route
+        path="/feedback"
+        element={
+          <RequireRole allowedRoles={["admin", "developer"]}>
+            <FeedbackPage />
+          </RequireRole>
         }
       />
 

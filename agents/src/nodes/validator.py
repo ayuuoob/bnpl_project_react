@@ -76,7 +76,7 @@ class ValidatorNode:
         return str(data)[:1000]
 
     def format_fallback(self, state: AgentState, error: str = None) -> str:
-        """Simple fallback formatting without LLM."""
+        """Simple fallback formatting without LLM - now in natural language."""
         data = state.data
         
         # Check if this was purely an explanation request
@@ -86,14 +86,13 @@ class ValidatorNode:
         if not data:
             if is_explanation_request:
                 return (
-                    "🤔 **Explanation Request**\n\n"
-                    "I don't have specific data for that yet, but I can explain the concept.\n\n"
-                    "Please ask me to *show* the data if you want to see numbers."
+                    "I don't have specific data for that yet, but I can explain the concept. "
+                    "However, if you'd like to see actual numbers, please ask me to show the data."
                 )
             
-            msg = "No data found for your query. Please check your filters."
+            msg = "I couldn't find any data for your query. Please check your filters."
             if error:
-                 msg += f"\n\n*(System Note: AI Generation failed: {error})*"
+                 msg += f" (System Note: AI Generation failed: {error})"
             return msg
         
         data_type = data.get("type", "")
@@ -105,17 +104,14 @@ class ValidatorNode:
             approval = metrics.get("approval_rate", {}).get("formatted", "0%")
             late = metrics.get("late_rate", {}).get("formatted", "0%")
             orders = metrics.get("orders", {}).get("value", 0)
+            
             return (
-                f"📊 **Business KPI Overview**\n\n"
-                f"| Metric | Value |\n|--------|-------|\n"
-                f"| 💰 GMV | {gmv:,.2f} MAD |\n"
-                f"| ✅ Approval Rate | {approval} |\n"
-                f"| ⏰ Late Rate | {late} |\n"
-                f"| 📦 Total Orders | {orders:,} |\n\n"
-                f"📈 **Recommended Chart**: Donut chart to show order status distribution"
+                f"Currently, the total GMV sits at {gmv:,.2f} MAD with an approval rate of {approval}. "
+                f"I'm also seeing a late payment rate of {late} across {orders:,} total orders. "
+                f"The donut chart below shows the full order status distribution."
             )
         
-        # General Metric (e.g. Total GMV alone)
+        # General Metric
         if "metric" in data and "value" in data:
             metric = data["metric"]
             val = data["value"]
@@ -123,12 +119,7 @@ class ValidatorNode:
             currency = data.get("currency", "")
             suffix = f" {currency}" if currency else ""
             
-            return (
-                f"📊 **{metric}**\n\n"
-                f"The total {metric} is **{val:,.0f}{suffix}**.\n"
-                f"{desc}\n\n"
-                f"💡 **Insight**: Value retrieved directly from database."
-            )
+            return f"The total {metric} is {val:,.0f}{suffix}. {desc}"
         
         # Risk Overview
         if data_type == "risk_overview":
@@ -136,117 +127,75 @@ class ValidatorNode:
             total = data.get("total_installments", 0)
             avg_score = data.get("avg_risk_score", 0)
             pct = data.get("high_risk_pct", 0)
+            
             return (
-                f"⚠️ **Risk Prediction Overview**\n\n"
-                f"Our ML model **predicts** that **{risky}** out of {total} installments ({pct}%) are at high risk of late payment.\n\n"
-                f"| Metric | Value |\n|--------|-------|\n"
-                f"| 🎯 Total Installments | {total} |\n"
-                f"| ⚠️ Predicted High Risk | {risky} |\n"
-                f"| 📊 Avg Risk Score | {avg_score}% |\n\n"
-                f"💡 **Insight**: These are model predictions based on behavioral patterns, not guarantees.\n\n"
-                f"📈 **Recommended Chart**: Donut chart showing risk distribution"
+                f"Our ML model predicts that {risky} out of {total} installments (that's {pct}%) are at high risk of late payment. "
+                f"The average risk score across the portfolio is {avg_score}%. "
+                f"These are model predictions based on behavioral patterns, not guarantees. "
+                f"You can check the donut chart for a visual breakdown of the risk distribution."
             )
         
         # Top Risky
         if data_type == "top_risky":
-            items = data.get("items", [])[:10]
-            lines = [
-                "📊 **Top Predicted Risky Installments**\n",
-                "Our ML model **predicts** these installments have the highest probability of late payment:\n",
-                "| User | Installment | Predicted Risk | Due Date |",
-                "|------|-------------|----------------|----------|"
-            ]
-            for item in items:
-                lines.append(f"| {item['user_id']} | {item['installment_id']} | {item['proba_late']}% | {item['due_date']} |")
+            items = data.get("items", [])[:5]
+            top_user = items[0]['user_id'] if items else "none"
+            top_prob = items[0]['proba_late'] if items else 0
             
-            lines.append("\n💡 **Insight**: Risk scores are ML predictions based on payment history, account age, and behavior patterns.")
-            lines.append("\n📈 **Recommended Chart**: Bar chart showing risk probability by user")
-            return "\n".join(lines)
+            return (
+                f"Our ML model identifies these installments as having the highest probability of late payment. "
+                f"For example, User {top_user} shows a {top_prob}% predicted risk. "
+                f"These predictions are based on payment history, account age, and behavior patterns. "
+                f"I'd recommend reviewing the bar chart to compare risk probabilities by user."
+            )
         
         # Risk Factors
         if data_type == "risk_factors":
             factors = data.get("factors", [])
-            lines = [
-                "🔍 **Common Risk Factors (Model Insights)**\n",
-                "Our ML model identifies these patterns as indicators of potential late payment:\n",
-                "| Risk Factor | Description | Occurrences |",
-                "|-------------|-------------|-------------|"
-            ]
-            for f in factors[:7]:
-                lines.append(f"| {f['code']} | {f['description']} | {f['occurrences']} |")
+            top_factors = ", ".join([f"{f['description'].lower()}" for f in factors[:3]])
             
-            lines.append("\n💡 **Insight**: These are behavioral patterns the model learned from historical data.")
-            lines.append("\n📈 **Recommended Chart**: Horizontal bar chart of factor frequency")
-            return "\n".join(lines)
+            return (
+                f"Our ML model has identified {top_factors} as the most common indicators of potential late payment. "
+                f"These are behavioral patterns the model learned from historical data. "
+                f"The horizontal bar chart breaks down the frequency of each risk factor."
+            )
         
         # User/Installment Risk
         if data_type in ["user_risk", "installment_risk"]:
             if "error" in data:
-                return f"⚠️ {data['error']}"
+                return f"I ran into an issue: {data['error']}"
             
             if data_type == "user_risk":
                 user_id = data.get('user_id')
                 risky = data.get('risky_installments', 0)
                 total = data.get('total_installments', 0)
                 avg = data.get('avg_risk_score', 0)
-                installments = data.get('installments', [])
                 
-                lines = [
-                    f"👤 **User Risk Prediction: {user_id}**\n",
-                    f"Our ML model **predicts** {risky} out of {total} installments are at risk of late payment.\n",
-                    f"| Metric | Value |\n|--------|-------|\n",
-                    f"| 📊 Avg Predicted Risk | {avg}% |\n",
-                    f"| ⚠️ High Risk Count | {risky} |\n\n",
-                ]
-                
-                if installments:
-                    lines.append("**Installment Details:**\n")
-                    lines.append("| Installment | Risk | Due Date | Reasons |")
-                    lines.append("|-------------|------|----------|---------|")
-                    for inst in installments[:5]:
-                        reasons = ", ".join(inst.get("reason_codes", []))[:30] or "—"
-                        lines.append(f"| {inst['installment_id']} | {inst['proba_late']}% | {inst['due_date']} | {reasons} |")
-                
-                return "\n".join(lines)
+                return (
+                    f"For user {user_id}, our model predicts {risky} out of {total} installments are at risk. "
+                    f"The average predicted risk across their plans is {avg}%. "
+                    f"You can see the specific reasons and due dates in the detailed table below."
+                )
             else:
                 inst_id = data.get('installment_id')
                 proba = data.get('proba_late', 0)
+                user = data.get('user_id')
                 reasons = data.get("explanation", {}).get("reason_codes", [])
-                reasons_str = ", ".join(reasons) if reasons else "No specific patterns"
-                factors = data.get("explanation", {}).get("top_factors", [])
+                reasons_str = "due to " + ", ".join(reasons).lower() if reasons else ""
                 
-                lines = [
-                    f"📄 **Installment Risk Prediction: {inst_id}**\n",
-                    f"Our ML model **predicts** a **{proba}%** probability of late payment.\n",
-                    f"| Field | Value |\n|-------|-------|\n",
-                    f"| User | {data.get('user_id')} |\n",
-                    f"| Due Date | {data.get('due_date')} |\n",
-                    f"| Risk Patterns | {reasons_str} |\n\n",
-                ]
-                
-                if factors:
-                    lines.append("**Top Contributing Factors:**\n")
-                    for f in factors[:3]:
-                        direction = "↑ increases" if f['direction'] == 'increases_risk' else "↓ decreases"
-                        lines.append(f"- `{f['feature']}` {direction} risk")
-                
-                return "\n".join(lines)
+                return (
+                    f"For installment {inst_id} (User {user}), the model predicts a {proba}% probability of late payment, {reasons_str}. "
+                    f"You can see the contributing factors and full breakdown in the details below."
+                )
         
         # Lists
         if data_type.endswith("_list"):
             count = data.get("count", 0)
-            items = data.get("items", [])
-            entity = data_type.replace("_list", "").title()
+            entity = data_type.replace("_list", "").replace("_", " ")
             
-            summary =  f"📋 **{entity}s** ({count} found)\n\n"
-            summary += "I have retrieved the data requested. Please refer to the **detailed table below** for the full list.\n\n"
-            
-            if error:
-                summary += f"*(System Note: AI Insights unavailable: {error})*"
-            else:
-                summary += "💡 **Insight**: Data loaded successfully."
-                
-            return summary
+            return (
+                f"I found {count} {entity}s matching your request. "
+                f"I've retrieved the full dataset for you - please refer to the detailed table below for the complete list."
+            )
         
         # Generic
-        return f"📊 Data Summary:\nTable displayed below.\n\n💡 **Insight**: Value retrieved directly from database." + (f"\n*(Debug: {error})*" if error else "")
+        return "I've retrieved the data summary you requested. You can see the full details in the table below."

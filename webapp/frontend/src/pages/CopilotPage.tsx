@@ -28,10 +28,19 @@ export default function CopilotPage() {
       setIsLoading(true);
 
       try {
+        // Prepare history (limit to last 10 messages to keep payload light)
+        const history = messages.slice(-10).map(m => ({
+          role: m.role,
+          content: m.content
+        }));
+
         const response = await fetch(`${API_URL}/api/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: content }),
+          body: JSON.stringify({
+            message: content,
+            history: history
+          }),
         });
 
         if (!response.ok) {

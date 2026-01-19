@@ -55,15 +55,18 @@ class AgentState(BaseModel):
     response: str = ""
     chart_data: Optional[Dict[str, Any]] = None
     
+    # Context
+    history: List[Dict[str, str]] = []  # List of {"role": "user"|"assistant", "content": "..."}
+    
     # Metadata
     current_node: str = ""
     processing_time_ms: float = 0.0
 
 
 # Quick helpers
-def create_state(query: str) -> AgentState:
+def create_state(query: str, history: List[Dict[str, str]] = []) -> AgentState:
     """Create a new agent state from a user query."""
-    return AgentState(user_query=query)
+    return AgentState(user_query=query, history=history)
 
 
 def is_risk_query(state: AgentState) -> bool:

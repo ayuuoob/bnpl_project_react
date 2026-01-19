@@ -50,7 +50,7 @@ def get_llm() -> Optional[ChatGoogleGenerativeAI]:
         return None
     
     return ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
+        model="gemini-1.5-flash",
         google_api_key=api_key,
         temperature=0.1
     )
@@ -76,12 +76,12 @@ class BNPLCopilot:
         self.validator = ValidatorNode()
         self.narrator = NarratorNode(self.llm)
     
-    async def process(self, query: str) -> str:
+    async def process(self, query: str, history: list = []) -> str:
         """Process a user query through the 4-node pipeline."""
         start_time = time.time()
         
         # Create state
-        state = create_state(query)
+        state = create_state(query, history)
         
         # 1. PLAN: Classify intent
         print(f"\n[Copilot] Processing: '{query}'")
@@ -141,9 +141,9 @@ class BNPLCopilot:
         
         return response
     
-    async def process_with_chart(self, query: str) -> dict:
+    async def process_with_chart(self, query: str, history: list = []) -> dict:
         """Process query and return response with chart data."""
-        response = await self.process(query)
+        response = await self.process(query, history)
         return {
             "response": response,
             "chart_data": getattr(self, '_last_chart_data', None)
@@ -162,23 +162,23 @@ def get_copilot() -> BNPLCopilot:
     return _copilot
 
 
-async def run_query(query: str) -> str:
+async def run_query(query: str, history: list = []) -> str:
     """Main entry point for processing a query."""
     copilot = get_copilot()
-    return await copilot.process(query)
+    return await copilot.process(query, history)
 
 
-async def run_query_with_chart(query: str) -> dict:
+async def run_query_with_chart(query: str, history: list = []) -> dict:
     """Process query and return response with chart data."""
     copilot = get_copilot()
-    return await copilot.process_with_chart(query)
+    return await copilot.process_with_chart(query, history)
 
 
-def run_query_sync(query: str) -> str:
+def run_query_sync(query: str, history: list = []) -> str:
     """Synchronous wrapper for run_query."""
-    return asyncio.run(run_query(query))
+    return asyncio.run(run_query(query, history))
 
 
-def run_query_with_chart_sync(query: str) -> dict:
+def run_query_with_chart_sync(query: str, history: list = []) -> dict:
     """Synchronous wrapper for run_query_with_chart."""
-    return asyncio.run(run_query_with_chart(query))
+    return asyncio.run(run_query_with_chart(query, history))

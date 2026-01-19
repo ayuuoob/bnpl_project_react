@@ -16,11 +16,27 @@ from ..state import AgentState, Intent, QueryEntities
 ROUTER_PROMPT = """You are an intent classifier for a BNPL (Buy Now Pay Later) analytics copilot.
 
 Classify the user's query into ONE of these intents:
-- kpi: Business metrics like GMV, approval rate, order count, revenue
-- risk: Risk scores, late payments, risky users/installments, explanations
-- lookup: User/merchant/order details, lists, filtering by city/category
-- comparison: Comparing dimensions (by city, category, time period)
-- conversation: Greetings, help, general questions
+
+1. **conversation**:
+   - Definitions: "What is risk?", "What is GMV?", "Explain the model"
+   - Educational: "How does scoring work?", "Tell me about this app"
+   - Greetings/General: "Hello", "Help", "Who are you?"
+   - **CRITICAL**: If the user asks for a concept explanation WITHOUT specific entity IDs or filters, it is CONVERSATION.
+
+2. **kpi**: 
+   - Requests for specific numbers: "What is the *total* GMV?", "Show approval rate", "Revenue today"
+   - Must be asking for a metric value.
+
+3. **risk**: 
+   - Specific risk analysis: "Risk score for user_001", "Why is order_123 rejected?"
+   - finding risky items: "Show me risky users", "List high risk installments"
+
+4. **lookup**: 
+   - Data retrieval: "Show users in Rabat", "List orders > 5000 MAD"
+   - Specific details: "Details for merchant_001"
+
+5. **comparison**: 
+   - "Compare risk by city", "GMV vs last month"
 
 Also extract any entities mentioned:
 - user_id: e.g. "user_00025" or "user 25"  
@@ -125,8 +141,25 @@ class RouterNode:
         """Simple keyword-based fallback classification."""
         query_lower = query.lower()
         
+        # IMPROVED LOGIC: Check for questions first
+        # We need to be careful: "How many" is usually a KPI/Count query, so we exclude it.
+        is_question = any(w in query_lower for w in ["what is", "what's", "explain", "define", "meaning"])
+        if "how" in query_lower and "how many" not in query_lower and "how much" not in query_lower:
+            is_question = True
+        
+        # Extract entities first to see if it's specific
+        self._extract_entities_fallback(state, query)
+        has_specific_entity = (state.entities.user_id or state.entities.merchant_id or 
+                              state.entities.order_id or state.entities.installment_id)
+        
+        # If it's a "what is..." question with NO specific ID, it's conversation
+        if is_question and not has_specific_entity and "show" not in query_lower:
+             state.intent = Intent.CONVERSATION
+             state.confidence = 0.6
+             return
+
         # Risk keywords
-        if any(w in query_lower for w in ["risk", "risky", "late", "why", "explain", "reason"]):
+        if any(w in query_lower for w in ["risk", "risky", "late"]):
             state.intent = Intent.RISK
             state.confidence = 0.7
         # KPI keywords

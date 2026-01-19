@@ -41,6 +41,7 @@ app.add_middleware(
 # ===== MODELS =====
 class ChatRequest(BaseModel):
     message: str
+    history: List[Dict[str, str]] = []
     
 class KPI(BaseModel):
     label: str
@@ -328,7 +329,7 @@ async def chat(request: ChatRequest):
     """Process chat message and return response with analytics."""
     try:
         # Call agent
-        result = await run_query_with_chart(request.message)
+        result = await run_query_with_chart(request.message, request.history)
         response_text = result.get("response", "I couldn't process that query.")
         chart_data = result.get("chart_data")
         
@@ -543,6 +544,69 @@ async def get_risky_users():
             })
         
         return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ===== FEEDBACK FEATURE =====
+import csv
+from datetime import datetime
+
+FEEDBACK_FILE = PROJECT_ROOT / "data" / "feedback.csv"
+
+class FeedbackRequest(BaseModel):
+    query: str
+    response_snippet: str
+    rating: str  # "positive" or "negative"
+    comment: Optional[str] = None
+
+@app.post("/api/feedback")
+async def submit_feedback(feedback: FeedbackRequest):
+    """Save user feedback on AI responses."""
+    try:
+        # Ensure file exists with header
+        file_exists = FEEDBACK_FILE.exists()
+        
+        with open(FEEDBACK_FILE, "a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            if not file_exists:
+                writer.writerow(["timestamp", "query", "response_snippet", "rating", "comment"])
+            
+            writer.writerow([
+                datetime.now().isoformat(),
+                feedback.query[:200],  # Limit query length
+                feedback.response_snippet[:300],  # Limit response length
+                feedback.rating,
+                feedback.comment or ""
+            ])
+        
+        return {"status": "success", "message": "Feedback saved"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/feedback")
+async def get_feedback():
+    """Retrieve all feedback entries."""
+    try:
+        if not FEEDBACK_FILE.exists():
+            return {"total": 0, "positive_pct": 0, "entries": []}
+        
+        entries = []
+        with open(FEEDBACK_FILE, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                entries.append(row)
+        
+        # Calculate stats
+        total = len(entries)
+        positive = sum(1 for e in entries if e.get("rating") == "positive")
+        positive_pct = round((positive / total * 100) if total > 0 else 0, 1)
+        
+        return {
+            "total": total,
+            "positive_pct": positive_pct,
+            "entries": entries[-50:]  # Return last 50 entries
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

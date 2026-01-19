@@ -18,11 +18,18 @@ export function AppNavbar() {
     navigate("/login", { replace: true });
   };
 
-  const navItems = [
-    { name: "Dashboard", href: "/dashboard" },
-    { name: "Copilot", href: "/copilot" },
-    { name: "Docs", href: "/docs" },
+  // Define nav items with role-based access
+  const allNavItems = [
+    { name: "Dashboard", href: "/dashboard", allowedRoles: ["admin", "analyst", "viewer", "developer"] },
+    { name: "Copilot", href: "/copilot", allowedRoles: ["admin", "analyst"] },
+    { name: "Docs", href: "/docs", allowedRoles: ["admin", "analyst", "developer"] },
+    { name: "Feedback", href: "/feedback", allowedRoles: ["admin", "developer"] },
   ];
+
+  // Filter nav items based on user role
+  const navItems = user
+    ? allNavItems.filter((item) => item.allowedRoles.includes(user.role))
+    : allNavItems.filter((item) => item.name === "Dashboard");
 
   const isActive = (href: string) => pathname === href;
 
@@ -49,11 +56,10 @@ export function AppNavbar() {
             <Link
               key={item.name}
               to={item.href}
-              className={`rounded-full px-5 py-2 text-sm font-medium transition-all ${
-                isActive(item.href)
+              className={`rounded-full px-5 py-2 text-sm font-medium transition-all ${isActive(item.href)
                   ? "bg-[#582098] text-white shadow-sm"
                   : "text-[#505050] hover:bg-white hover:text-[#303848]"
-              }`}
+                }`}
             >
               {item.name}
             </Link>
