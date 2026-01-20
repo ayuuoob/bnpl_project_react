@@ -172,4 +172,4 @@ Use these credentials to test the different personas:
 *   **"API Exhausted"**: The system has smart fallbacks. Try asking basic definition questions ("What is GMV?") which work offline.
 
 ---
-**Built for the DXC Hackathon 2024**
+**Built for the DXC Hackathon 2026**
